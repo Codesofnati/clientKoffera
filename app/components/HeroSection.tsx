@@ -5,13 +5,12 @@ import { useEffect, useState } from "react";
 export default function Hero() {
   const API = process.env.NEXT_PUBLIC_API_URL;
 
-  const fallbackVideo = "/hero-video.mp4"; // local fallback
-  const [videoUrl, setVideoUrl] = useState<string>(fallbackVideo);
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!API) {
-      setVideoUrl(fallbackVideo);
+      setVideoUrl(null);
       setLoading(false);
       return;
     }
@@ -23,8 +22,8 @@ export default function Hero() {
         });
 
         if (!res.ok) {
-          console.warn("Backend error → using fallback video");
-          setVideoUrl(fallbackVideo);
+          console.warn("Backend error → no video available");
+          setVideoUrl(null);
           return;
         }
 
@@ -34,11 +33,11 @@ export default function Hero() {
           // prevent caching
           setVideoUrl(`${data.url}?t=${Date.now()}`);
         } else {
-          setVideoUrl(fallbackVideo);
+          setVideoUrl(null);
         }
       } catch (err) {
         console.error("Failed to load hero video:", err);
-        setVideoUrl(fallbackVideo);
+        setVideoUrl(null);
       } finally {
         setLoading(false);
       }
@@ -52,12 +51,12 @@ export default function Hero() {
       {/* Loading */}
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center z-10">
-          <p className="text-xl animate-pulse">Loading hero video...</p>
+          <p className="text-xl animate-pulse">Loading hero content...</p>
         </div>
       )}
 
       {/* Video */}
-      {!loading && (
+      {!loading && videoUrl && (
         <video
           src={videoUrl}
           className="w-full h-full object-cover"
