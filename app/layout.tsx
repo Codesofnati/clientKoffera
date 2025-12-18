@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-    metadataBase: new URL("https://koffera.vercel.app"), // 🔁 change to real domain later
+    metadataBase: new URL("https://koffera-coffee.vercel.app"), // 🔁 change to real domain later
 
   title: {
     default: "Koffera Coffee | Premium Ethiopian Coffee Exporter",
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     title: "Koffera Coffee | Premium Ethiopian Coffee Exporter",
     description:
       "Exporting premium Ethiopian Arabica coffee with sustainability and integrity.",
-    url: "https://koffera.vercel.app",
+    url: "https://koffera-coffee.vercel.app",
     siteName: "Koffera Coffee",
     images: [
       {

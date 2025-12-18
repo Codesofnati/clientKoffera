@@ -22,8 +22,8 @@ export const metadata: Metadata = {
       "@context": "https://schema.org",
       "@type": "Organization",
       name: "Koffera Coffee",
-      url: "https://koffera.vercel.app",
-      logo: "https://koffera.vercel.app/hero-logo.png",
+      url: "https://koffera-coffee.vercel.app",
+      logo: "https://koffera-coffee.vercel.app/hero-logo.png",
       sameAs: [
         "https://www.facebook.com/share/1BmywZfzue/?mibextid=wwXIfr",
         "https://www.instagram.com/fira_link_business_solution?igsh=b3BlZ3R1aWlwMTE3&utm_source=qr",
