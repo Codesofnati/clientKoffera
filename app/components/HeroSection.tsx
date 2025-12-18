@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 export default function Hero() {
   const API = process.env.NEXT_PUBLIC_API_URL;
-
+  const fallbackImage = "/hero.jpg"; // put this in /public
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     if (!API) {
@@ -17,53 +19,54 @@ export default function Hero() {
 
     async function loadVideo() {
       try {
-        const res = await fetch(`${API}/videos/latest`, {
-          cache: "no-store",
-        });
-
+        const res = await fetch(`${API}/videos/latest`, { cache: "no-store" });
         if (!res.ok) {
-          console.warn("Backend error → no video available");
           setVideoUrl(null);
           return;
         }
 
         const data = await res.json();
-
         if (data?.url) {
-          // prevent caching
           setVideoUrl(`${data.url}?t=${Date.now()}`);
         } else {
           setVideoUrl(null);
         }
       } catch (err) {
-        console.error("Failed to load hero video:", err);
+        console.error("Failed to load video:", err);
         setVideoUrl(null);
-      } finally {
-        setLoading(false);
       }
     }
 
     loadVideo();
   }, [API]);
 
+  // Once video can play, stop showing the loading fallback
+  const handleCanPlay = () => {
+    setLoading(false);
+  };
+
   return (
     <div className="w-full h-screen relative bg-black text-white overflow-hidden">
-      {/* Loading */}
+      {/* Fallback Image */}
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center z-10">
-          <p className="text-xl animate-pulse">Loading hero content...</p>
-        </div>
+        <img
+          src={fallbackImage}
+          alt="Hero Background"
+          className="w-full h-full object-cover"
+        />
       )}
 
       {/* Video */}
-      {!loading && videoUrl && (
+      {videoUrl && (
         <video
+          ref={videoRef}
           src={videoUrl}
-          className="w-full h-full object-cover"
+          className={`w-full h-full object-cover ${loading ? "hidden" : "block"}`}
           autoPlay
           muted
           loop
           playsInline
+          onCanPlay={handleCanPlay}
         />
       )}
 
