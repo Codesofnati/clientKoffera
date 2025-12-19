@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { FaVolumeMute, FaVolumeUp } from "react-icons/fa";
 
 export default function Hero() {
   const API = process.env.NEXT_PUBLIC_API_URL;
-  const fallbackImage = "/hero.jpg"; // put this in /public
+  const fallbackImage = "/hero.jpg"; // fallback image in /public
+
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -22,6 +25,7 @@ export default function Hero() {
         const res = await fetch(`${API}/videos/latest`, { cache: "no-store" });
         if (!res.ok) {
           setVideoUrl(null);
+          setLoading(false);
           return;
         }
 
@@ -40,9 +44,14 @@ export default function Hero() {
     loadVideo();
   }, [API]);
 
-  // Once video can play, stop showing the loading fallback
   const handleCanPlay = () => {
     setLoading(false);
+  };
+
+  const toggleMute = () => {
+    if (!videoRef.current) return;
+    videoRef.current.muted = !videoRef.current.muted;
+    setIsMuted(videoRef.current.muted);
   };
 
   return (
@@ -63,18 +72,28 @@ export default function Hero() {
           src={videoUrl}
           className={`w-full h-full object-cover ${loading ? "hidden" : "block"}`}
           autoPlay
-          muted
+          muted={isMuted}
           loop
           playsInline
           onCanPlay={handleCanPlay}
         />
       )}
 
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-20">
-        <h1 className="text-4xl md:text-6xl font-bold text-center px-4">
+      {/* Overlay Text */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
+        <h1 className="text-4xl md:text-6xl font-bold text-center px-4 mb-6">
           Welcome to Koffera Coffee
         </h1>
+
+        {/* Mute/Unmute Button */}
+        {!loading && videoUrl && (
+          <button
+            onClick={toggleMute}
+            className="text-black text-4xl absolute right-10 bottom-10 hover:text-amber-400 transition"
+          >
+            {isMuted ? <FaVolumeMute /> : <FaVolumeUp />}
+          </button>
+        )}
       </div>
     </div>
   );

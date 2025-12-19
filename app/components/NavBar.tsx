@@ -77,7 +77,7 @@ const NavBar = () => {
         </nav>
 
         {/* Mobile Menu Button */}
-        <div className="lg:hidden ml-auto">
+        <div className="md:hidden ml-auto">
           <button onClick={() => setMobileMenu(!mobileMenu)} className="text-emerald-700">
             {mobileMenu ? <FaTimes size={24} /> : <FaBars size={24} />}
           </button>
