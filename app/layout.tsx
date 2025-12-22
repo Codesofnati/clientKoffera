@@ -1,15 +1,12 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
 import NavBar from "./components/NavBar";
 import Footer from "./components/Footer";
 import { Ubuntu } from 'next/font/google';
+import "./globals.css";
 
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
+
 const ubuntu = Ubuntu({
   subsets: ['latin'],
   weight: ['400', '500', '700'],
@@ -22,13 +19,20 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
     metadataBase: new URL("https://koffera-coffee.vercel.app"), // 🔁 change to real domain later
+    
 
   title: {
     default: "Koffera Coffee | Premium Ethiopian Coffee Exporter",
     template: "%s | Koffera Coffee",
   },
   description:"Koffera Coffee is a premium Ethiopian coffee exporter delivering high-quality Arabica beans worldwide with sustainability and ethical sourcing.",
+  applicationName: "Koffera Coffee",
    keywords: [
+    "Ethiopian coffee beans",
+    "Yirgacheffe coffee export",
+    "Sidamo Arabica coffee",
+    "fair trade Ethiopian coffee",
+    "bulk coffee supplier",
     "Ethiopian coffee",
     "coffee export Ethiopia",
     "Arabica coffee",
@@ -48,7 +52,7 @@ export const metadata: Metadata = {
     siteName: "Koffera Coffee",
     images: [
       {
-        url: "/og-image.jpg", // create this image (1200x630)
+        url: "https://koffera-coffee.vercel.app/og-image.png", // create this image (1200x630)
         width: 1200,
         height: 630,
         alt: "Koffera Coffee Ethiopian Export",
@@ -62,7 +66,7 @@ export const metadata: Metadata = {
     title: "Koffera Coffee",
     description:
       "Premium Ethiopian coffee exporter delivering quality Arabica beans globally.",
-    images: ["/og-image.jpg"],
+    images: ["https://koffera-coffee.vercel.app/og-image.png"],
   },
   
   robots: {
@@ -74,6 +78,12 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
 };
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#8B4513',
+};
+
 
 export default function RootLayout({
   children,
@@ -83,7 +93,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="caramellatte" >
       <body
-        className={`${geistSans.variable} ${ubuntu.className} ${geistMono.variable} antialiased`}
+        className={`${ubuntu.className} ${geistMono.variable} antialiased`}
       >
         <NavBar/>
         {children}
