@@ -68,7 +68,7 @@ export const metadata: Metadata = {
       "Premium Ethiopian coffee exporter delivering quality Arabica beans globally.",
     images: ["https://koffera-coffee.vercel.app/og-image.png"],
   },
-  
+   
   robots: {
     index: true,
     follow: true,
