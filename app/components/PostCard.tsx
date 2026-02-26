@@ -1,4 +1,4 @@
-// components/PostCard.tsx (updated with comment button and loading state)
+// components/PostCard.tsx (updated with video thumbnail functionality for uploaded videos only)
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -63,7 +63,12 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ type: 'like' | 'comment' } | null>(null);
   const [showAllComments, setShowAllComments] = useState(false);
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false); // New loading state for comments
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  
+  // State for video thumbnails
+  const [videoThumbnails, setVideoThumbnails] = useState<{ [key: string]: string }>({});
+  const [thumbnailErrors, setThumbnailErrors] = useState<{ [key: string]: boolean }>({});
+  const [loadingThumbnails, setLoadingThumbnails] = useState<{ [key: string]: boolean }>({});
   
   const { user } = useSupabaseAuth();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -98,6 +103,76 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   const sortedComments = [...(post.comments || [])].sort((a, b) => 
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
+
+  // Build media array
+  const allMedia = [
+    ...(post.youtubeUrl ? [{ type: 'video' as const, url: post.youtubeUrl, caption: post.videoCaption, isYoutube: true }] : []),
+    ...(post.videoUrl ? [{ type: 'video' as const, url: post.videoUrl, caption: post.videoCaption, isYoutube: false }] : []),
+    ...(post.images?.map(img => ({ type: 'image' as const, url: img.url })) || [])
+  ];
+
+  const totalMedia = allMedia.length;
+  const hasMedia = totalMedia > 0;
+
+  // Function to generate video thumbnail from uploaded video
+  const generateVideoThumbnail = (videoUrl: string, videoId: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.crossOrigin = 'anonymous';
+      video.src = videoUrl;
+      video.currentTime = 1; // Seek to 1 second
+      video.muted = true;
+      
+      // Set loading state
+      setLoadingThumbnails(prev => ({ ...prev, [videoId]: true }));
+      
+      video.onloadeddata = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const thumbnailUrl = canvas.toDataURL('image/jpeg');
+        
+        setLoadingThumbnails(prev => ({ ...prev, [videoId]: false }));
+        resolve(thumbnailUrl);
+      };
+      
+      video.onerror = () => {
+        console.error('Failed to generate thumbnail for video:', videoUrl);
+        setThumbnailErrors(prev => ({ ...prev, [videoId]: true }));
+        setLoadingThumbnails(prev => ({ ...prev, [videoId]: false }));
+        reject(new Error('Failed to generate thumbnail'));
+      };
+    });
+  };
+
+  // Load thumbnails for uploaded videos only (not YouTube)
+  useEffect(() => {
+    const loadThumbnails = async () => {
+      const uploadedVideos = allMedia.filter(media => 
+        media.type === 'video' && !media.isYoutube
+      );
+      
+      for (const video of uploadedVideos) {
+        const videoId = video.url.split('?')[0]; // Use URL without timestamp as ID
+        
+        // Skip if already loaded, errored, or loading
+        if (videoThumbnails[videoId] || thumbnailErrors[videoId] || loadingThumbnails[videoId]) continue;
+        
+        try {
+          const thumbnail = await generateVideoThumbnail(video.url, videoId);
+          setVideoThumbnails(prev => ({ ...prev, [videoId]: thumbnail }));
+        } catch (error) {
+          console.error('Failed to load thumbnail for:', video.url);
+        }
+      }
+    };
+
+    if (hasMedia) {
+      loadThumbnails();
+    }
+  }, [post.id]); // Re-run when post changes
 
   // Check if mobile on mount and resize
   useEffect(() => {
@@ -175,21 +250,17 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
       return;
     }
     
-    setIsSubmittingComment(true); // Set loading state
+    setIsSubmittingComment(true);
     
     try {
       const userName = getUserDisplayName();
       await onAddComment(post.id, userName, commentText);
       setCommentText('');
-      
-      // Auto-expand comments to show the new comment
       setShowAllComments(true);
-      
-      // Show success message
     } catch (error) {
       toast.error('Failed to add comment');
     } finally {
-      setIsSubmittingComment(false); // Reset loading state
+      setIsSubmittingComment(false);
     }
   };
 
@@ -209,16 +280,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   };
 
   const formattedDate = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
-
-  // Build media array
-  const allMedia = [
-    ...(post.youtubeUrl ? [{ type: 'video' as const, url: post.youtubeUrl, caption: post.videoCaption }] : []),
-    ...(post.videoUrl ? [{ type: 'video' as const, url: post.videoUrl, caption: post.videoCaption }] : []),
-    ...(post.images?.map(img => ({ type: 'image' as const, url: img.url })) || [])
-  ];
-
-  const totalMedia = allMedia.length;
-  const hasMedia = totalMedia > 0;
 
   const nextImage = () => {
     setActiveImageIndex((prev) => (prev + 1) % totalMedia);
@@ -262,53 +323,85 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   const MediaGallery = () => {
     if (!hasMedia) return null;
 
+    const currentMedia = allMedia[activeImageIndex];
+    const isCurrentVideo = currentMedia.type === 'video';
+    const isCurrentYoutube = isCurrentVideo && currentMedia.isYoutube;
+    const videoId = isCurrentVideo && !isCurrentYoutube ? currentMedia.url.split('?')[0] : null;
+    const thumbnailUrl = videoId ? videoThumbnails[videoId] : null;
+    const isLoadingThumbnail = videoId ? loadingThumbnails[videoId] : false;
+    const hasThumbnailError = videoId ? thumbnailErrors[videoId] : false;
+
     return (
       <div className="px-3 sm:px-4">
         <div className="relative w-full rounded-2xl overflow-hidden bg-gradient-to-br from-gray-900 to-gray-800 shadow-2xl border border-gray-200/20 group">
           <div className="relative aspect-[4/3] sm:aspect-video w-full">
-            {allMedia[activeImageIndex].type === 'video' ? (
+            {isCurrentVideo ? (
               <div className="relative w-full h-full">
-                {allMedia[activeImageIndex].url.includes('youtube.com') || allMedia[activeImageIndex].url.includes('youtu.be') ? (
-                  <>
-                    <img
-                      src={`https://img.youtube.com/vi/${allMedia[activeImageIndex].url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2] || ''}/maxresdefault.jpg`}
-                      alt="Video thumbnail"
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                    <div 
-                      onClick={() => setSelectedMedia(allMedia[activeImageIndex])}
-                      className="absolute inset-0 flex items-center justify-center cursor-pointer group"
-                    >
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-emerald-500 rounded-full blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
-                        <div className="relative w-14 h-14 sm:w-20 sm:h-20 bg-white/95 backdrop-blur-sm rounded-full flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
-                          <FaPlay className="w-5 h-5 sm:w-7 sm:h-7 text-emerald-600 ml-1" />
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <video 
-                    src={allMedia[activeImageIndex].url} 
+                {isCurrentYoutube ? (
+                  // YouTube video - show YouTube thumbnail
+                  <img
+                    src={`https://img.youtube.com/vi/${currentMedia.url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2] || ''}/maxresdefault.jpg`}
+                    alt="Video thumbnail"
                     className="w-full h-full object-cover"
-                    onClick={() => setSelectedMedia(allMedia[activeImageIndex])}
                   />
+                ) : (
+                  // Uploaded video - show generated thumbnail or fallback
+                  <>
+                    {thumbnailUrl && !hasThumbnailError ? (
+                      <img
+                        src={thumbnailUrl}
+                        alt="Video thumbnail"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                        {isLoadingThumbnail ? (
+                          <div className="text-center">
+                            <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                            <p className="text-gray-400 text-sm">Loading thumbnail...</p>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <FiFilm className="w-16 h-16 text-gray-600 mx-auto mb-2" />
+                            <p className="text-gray-400 text-sm">Video Preview</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
+                
+                {/* Gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                
+                {/* Play button overlay */}
+                <div 
+                  onClick={() => setSelectedMedia(currentMedia)}
+                  className="absolute inset-0 flex items-center justify-center cursor-pointer group"
+                >
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-emerald-500 rounded-full blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
+                    <div className="relative w-14 h-14 sm:w-20 sm:h-20 bg-white/95 backdrop-blur-sm rounded-full flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+                      <FaPlay className="w-5 h-5 sm:w-7 sm:h-7 text-emerald-600 ml-1" />
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
+              // Image display
               <>
                 <Image
-                  src={allMedia[activeImageIndex].url}
+                  src={currentMedia.url}
                   alt="Post media"
                   fill
                   className="object-cover cursor-pointer"
-                  onClick={() => setSelectedMedia(allMedia[activeImageIndex])}
+                  onClick={() => setSelectedMedia(currentMedia)}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
               </>
             )}
 
+            {/* Media counter */}
             {totalMedia > 1 && (
               <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 shadow-lg flex items-center gap-1">
                 <FiCamera className="w-3 h-3" />
@@ -316,13 +409,15 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
               </div>
             )}
 
-            {allMedia[activeImageIndex].type === 'video' && (
+            {/* Video indicator */}
+            {isCurrentVideo && (
               <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 shadow-lg flex items-center gap-1">
                 <FiVideo className="w-3 h-3" />
-                Video
+                {isCurrentYoutube ? 'YouTube' : 'Video'}
               </div>
             )}
 
+            {/* Navigation arrows */}
             {totalMedia > 1 && (
               <>
                 <button
@@ -345,47 +440,70 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
             )}
           </div>
 
+          {/* Thumbnail strip */}
           {totalMedia > 1 && (
             <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide bg-gradient-to-r from-gray-50 to-white border-t border-gray-200/50">
-              {allMedia.map((media, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setActiveImageIndex(idx)}
-                  className={`relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden transition-all ${
-                    idx === activeImageIndex 
-                      ? 'ring-3 ring-emerald-500 shadow-xl scale-105' 
-                      : 'opacity-60 hover:opacity-100 ring-1 ring-gray-300'
-                  }`}
-                >
-                  {media.type === 'video' ? (
-                    <div className="relative w-full h-full bg-gray-900">
-                      {media.url.includes('youtube.com') || media.url.includes('youtu.be') ? (
-                        <img
-                          src={`https://img.youtube.com/vi/${media.url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2] || ''}/default.jpg`}
-                          alt="Thumbnail"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-                          <FiFilm className="w-5 h-5 text-white/70" />
-                        </div>
-                      )}
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <div className="w-5 h-5 bg-white/90 rounded-full flex items-center justify-center">
-                          <FaPlay className="w-2.5 h-2.5 text-emerald-600 ml-0.5" />
+              {allMedia.map((media, idx) => {
+                const isVideo = media.type === 'video';
+                const isYoutube = isVideo && media.isYoutube;
+                const thumbVideoId = isVideo && !isYoutube ? media.url.split('?')[0] : null;
+                const thumbUrl = thumbVideoId ? videoThumbnails[thumbVideoId] : null;
+                const isLoadingThumb = thumbVideoId ? loadingThumbnails[thumbVideoId] : false;
+                
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveImageIndex(idx)}
+                    className={`relative flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden transition-all ${
+                      idx === activeImageIndex 
+                        ? 'ring-3 ring-emerald-500 shadow-xl scale-105' 
+                        : 'opacity-60 hover:opacity-100 ring-1 ring-gray-300'
+                    }`}
+                  >
+                    {isVideo ? (
+                      <div className="relative w-full h-full bg-gray-900">
+                        {isYoutube ? (
+                          <img
+                            src={`https://img.youtube.com/vi/${media.url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2] || ''}/default.jpg`}
+                            alt="YouTube thumbnail"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <>
+                            {thumbUrl ? (
+                              <img
+                                src={thumbUrl}
+                                alt="Video thumbnail"
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                                {isLoadingThumb ? (
+                                  <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                  <FiFilm className="w-5 h-5 text-white/70" />
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <div className="w-5 h-5 bg-white/90 rounded-full flex items-center justify-center">
+                            <FaPlay className="w-2.5 h-2.5 text-emerald-600 ml-0.5" />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <Image
-                      src={media.url}
-                      alt="Thumbnail"
-                      fill
-                      className="object-cover"
-                    />
-                  )}
-                </button>
-              ))}
+                    ) : (
+                      <Image
+                        src={media.url}
+                        alt="Thumbnail"
+                        fill
+                        className="object-cover"
+                      />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -393,11 +511,10 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
     );
   };
 
-  // Get comments to display based on showAllComments state - using sorted comments
+  // Get comments to display based on showAllComments state
   const getDisplayComments = () => {
     if (!sortedComments || sortedComments.length === 0) return [];
     if (showAllComments) return sortedComments;
-    // Show only the most recent comment (first in sorted array)
     return [sortedComments[0]];
   };
 
@@ -535,7 +652,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                         </div>
                       ))}
 
-                      {/* View more comments button */}
                       {hasMoreComments && (
                         <motion.button
                           initial={{ opacity: 0 }}
@@ -548,7 +664,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                         </motion.button>
                       )}
 
-                      {/* Show less button */}
                       {showAllComments && sortedComments.length > 1 && (
                         <motion.button
                           initial={{ opacity: 0 }}
