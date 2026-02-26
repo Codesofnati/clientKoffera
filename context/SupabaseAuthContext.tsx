@@ -40,7 +40,7 @@ const showCustomToast = {
   exit={{ opacity: 0, scale: 0.5, x: 50, transition: { duration: 0.2 } }}  // Exit to the right
   className={`${
     t.visible ? 'animate-enter' : 'animate-leave'
-  } max-w-md w-full  mr-4 bg-gradient-to-r from-white to-white shadow-2xl rounded-2xl pointer-events-auto overflow-hidden border border-emerald-400/30 backdrop-blur-sm`}
+  } max-w-md w-80  bg-gradient-to-r from-white to-white shadow-2xl rounded-2xl pointer-events-auto overflow-hidden border border-emerald-400/30 backdrop-blur-sm`}
   style={{ position: 'fixed', right: '20px', top: '80px' }}  // Fixed positioning on the right
 >
   <div className="relative">

@@ -222,7 +222,7 @@ export const UserNotifications = () => {
             initial={{ opacity: 0, y: -10, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-50"
+            className="absolute right-0 -left-50  md:-left-70 mt-5 w-90 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-50"
           >
             {/* Header */}
             <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">

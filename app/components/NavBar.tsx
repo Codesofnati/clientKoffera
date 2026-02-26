@@ -447,19 +447,7 @@ const NavBar = () => {
                   ))}
                 </div>
 
-                {/* Sign out button for mobile */}
-                {user && (
-                  <motion.button
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    onClick={handleLogout}
-                    className="w-full mt-4 px-4 py-3 bg-gradient-to-r from-red-50 to-rose-50 text-red-600 rounded-xl font-medium flex items-center justify-center gap-2 hover:from-red-100 hover:to-rose-100 transition-all border border-red-200"
-                  >
-                    <FiLogOut className="w-5 h-5" />
-                    <span>Sign Out</span>
-                  </motion.button>
-                )}
+                
 
                 {/* Decorative element */}
                 <motion.div
