@@ -8,6 +8,7 @@ import TargetMarket from "./components/TargetMarket";
 import Achievements from "./components/Achievements";
 import BenefitsSection from "./components/Benefits";
 import ContactUs from "./components/ContactUs";
+import AdminPostsPage from "./components/Posts";
 
 export const metadata: Metadata = {
   title: "Premium Ethiopian Coffee Exporter",
@@ -46,7 +47,7 @@ export default function Home() {
       <section id="hero" className="min-h-screen">
         <HeroSection />
       </section>
-
+      
       {/* Founder Section */}
       <section id="founder" className="min-h-screen bg-gray-50">
         <Founder />
@@ -77,10 +78,7 @@ export default function Home() {
         <BenefitsSection />
       </section>
 
-      {/* Contact Section */}
-      <section id="contact" className="min-h-screen bg-gray-50">
-        <ContactUs />
-      </section>
+      
     </div>
   );
 }
