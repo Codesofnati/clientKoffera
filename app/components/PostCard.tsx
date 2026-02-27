@@ -1,8 +1,8 @@
-// components/PostCard.tsx (updated with video thumbnail functionality for uploaded videos only)
+// components/PostCard.tsx (updated with proper like functionality)
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Post } from '@/services/postService';
+import { Post, Comment } from '@/services/postService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiHeart, 
@@ -22,7 +22,10 @@ import {
   FiAlertTriangle,
   FiChevronDown,
   FiChevronUp,
-  FiLoader
+  FiLoader,
+  FiSend,
+  FiMail,
+  FiCornerDownRight
 } from 'react-icons/fi';
 import { FaPlay, FaRegSmile, FaRegHeart, FaHeart, FaRegBookmark, FaBookmark } from 'react-icons/fa';
 import { formatDistanceToNow } from 'date-fns';
@@ -30,6 +33,15 @@ import Image from 'next/image';
 import toast from 'react-hot-toast';
 import { useSupabaseAuth } from '@/context/SupabaseAuthContext';
 import { LoginModal } from '@/app/components/Auth/LoginModal';
+import { postService } from '@/services/postService';
+import { api } from '@/lib/axiosConfig';
+
+interface ExtendedComment extends Comment {
+  replies?: ExtendedComment[];
+  parent_comment_id?: number | null;
+  email?: string;
+  is_admin_reply?: boolean;
+}
 
 interface PostCardProps {
   post: Post;
@@ -61,9 +73,15 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   const [isExpanded, setIsExpanded] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
-  const [pendingAction, setPendingAction] = useState<{ type: 'like' | 'comment' } | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ type: 'like' | 'comment' | 'reply' } | null>(null);
   const [showAllComments, setShowAllComments] = useState(false);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState<{ [key: number]: string }>({});
+  const [comments, setComments] = useState<ExtendedComment[]>(post.comments || []);
+  const [isSubmittingReply, setIsSubmittingReply] = useState<{ [key: number]: boolean }>({});
+  // Add state to track if current user has liked the post
+  const [hasLiked, setHasLiked] = useState(false);
   
   // State for video thumbnails
   const [videoThumbnails, setVideoThumbnails] = useState<{ [key: string]: string }>({});
@@ -74,6 +92,42 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   const menuRef = useRef<HTMLDivElement>(null);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
+  const replyInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
+
+  // Update comments when post prop changes
+  useEffect(() => {
+    setComments(post.comments || []);
+  }, [post.comments]);
+
+  // Check if current user has liked this post
+  useEffect(() => {
+    // You would typically check this from a separate API or from the post data
+    // For now, we'll simulate it based on user and localStorage or context
+    if (user) {
+      // You can implement this based on your backend response
+      // For example, if the post object includes a 'liked_by_user' field
+      // Or you can make an API call to check
+      
+      // Placeholder logic - replace with actual implementation
+      const checkIfLiked = async () => {
+        try {
+          // Example API call to check if user liked the post
+          // const response = await api.get(`/posts/${post.id}/liked`);
+          // setHasLiked(response.data.liked);
+          
+          // For now, we'll just use a simple approach
+          // This should be replaced with actual logic
+          setHasLiked(false); // Default to false, update based on actual data
+        } catch (error) {
+          console.error('Error checking like status:', error);
+        }
+      };
+      
+      checkIfLiked();
+    } else {
+      setHasLiked(false);
+    }
+  }, [user, post.id]);
 
   // Get user's display name from Supabase user metadata
   const getUserDisplayName = (): string => {
@@ -90,6 +144,11 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
     return 'User';
   };
 
+  // Get user's email
+  const getUserEmail = (): string => {
+    return user?.email || '';
+  };
+
   // Get user's avatar/initials
   const getUserInitials = (): string => {
     const name = getUserDisplayName();
@@ -99,10 +158,320 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   // Check if user is admin
   const isAdmin = user?.email === ADMIN_EMAIL;
 
-  // Sort comments from newest to oldest
-  const sortedComments = [...(post.comments || [])].sort((a, b) => 
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
+  // Build comment tree from flat comments array
+  const buildCommentTree = (comments: any[]): ExtendedComment[] => {
+    const map = new Map<number, ExtendedComment>();
+    const roots: ExtendedComment[] = [];
+
+    // First pass: create map of all comments
+    comments.forEach((comment) => {
+      map.set(comment.id, { 
+        ...comment, 
+        replies: []
+      });
+    });
+
+    // Second pass: organize into tree
+    map.forEach((comment) => {
+      if (comment.parent_comment_id && map.has(comment.parent_comment_id)) {
+        const parent = map.get(comment.parent_comment_id);
+        if (parent) {
+          parent.replies = parent.replies || [];
+          parent.replies.push(comment);
+          // Sort replies by date (oldest first for proper thread order)
+          parent.replies.sort((a, b) => 
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+        }
+      } else {
+        roots.push(comment);
+      }
+    });
+
+    // Sort roots by date (newest first)
+    return roots.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  };
+
+  // Updated handleReplySubmit to use the new endpoint
+  const handleReplySubmit = async (commentId: number) => {
+    if (!user) {
+      setPendingAction({ type: 'reply' });
+      setShowLoginModal(true);
+      setReplyingTo(commentId);
+      return;
+    }
+
+    if (!replyText[commentId]?.trim()) {
+      toast.error('Please write a reply');
+      return;
+    }
+
+    setIsSubmittingReply(prev => ({ ...prev, [commentId]: true }));
+
+    try {
+      // Use the dedicated reply endpoint
+      const response = await api.post(`/posts/${post.id}/comments/${commentId}/reply`, {
+        comment: replyText[commentId]
+      });
+      
+      if (response.data && response.data.comment) {
+        const newReply = response.data.comment;
+        
+        // Log to verify the response
+        console.log('New reply received:', newReply);
+        
+        // Add the new reply to the comments state
+        setComments(prevComments => {
+          const updatedComments = [...prevComments, newReply];
+          return updatedComments;
+        });
+      }
+      
+      setReplyText((prev) => ({ ...prev, [commentId]: '' }));
+      setReplyingTo(null);
+      
+      toast.success(
+        <div className="flex items-center gap-2">
+          <FiSend className="w-4 h-4 text-emerald-600" />
+          <span>Reply sent successfully!</span>
+        </div>,
+        {
+          icon: '💬',
+          style: {
+            background: 'linear-gradient(to right, #d1fae5, #a7f3d0)',
+            color: '#065f46',
+            border: '1px solid #a7f3d0',
+          },
+        }
+      );
+    } catch (error) {
+      console.error('Reply error:', error);
+      toast.error('Failed to send reply');
+    } finally {
+      setIsSubmittingReply(prev => ({ ...prev, [commentId]: false }));
+    }
+  };
+
+  const CommentComponent = ({ comment, depth = 0 }: { comment: ExtendedComment; depth?: number }) => {
+    const hasReplies = comment.replies && comment.replies.length > 0;
+    const maxDepth = 3; // Limit nesting depth
+
+    return (
+      <motion.div
+        id={`comment-${comment.id}`}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`mb-3 transition-all duration-300 relative ${depth > 0 ? 'ml-6 sm:ml-8' : ''}`}
+      >
+        {/* Thread line for nested comments */}
+        {depth > 0 && (
+          <div className="absolute left-[-16px] top-0 bottom-0 w-0.5 bg-gradient-to-b from-emerald-200 to-transparent" />
+        )}
+        
+        <div className={`bg-white rounded-xl p-3 sm:p-4 shadow-sm border ${
+          comment.is_admin_reply 
+            ? 'border-emerald-200 bg-emerald-50/30' 
+            : 'border-gray-100'
+        } hover:shadow-md transition-shadow`}>
+          
+          {/* Comment Header */}
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className={`rounded-full flex items-center justify-center text-white font-semibold shadow-md ${
+                depth === 0 ? 'w-7 h-7 sm:w-8 sm:h-8 text-xs sm:text-sm' : 'w-6 h-6 text-[10px] sm:text-xs'
+              } ${
+                comment.is_admin_reply 
+                  ? 'bg-gradient-to-r from-emerald-700 to-green-800' 
+                  : 'bg-gradient-to-r from-emerald-500 to-green-500'
+              }`}>
+                {comment.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-gray-800 text-xs sm:text-sm">
+                    {comment.name}
+                  </span>
+                  {comment.is_admin_reply && (
+                    <span className="px-2 py-0.5 text-[8px] sm:text-[10px] bg-emerald-100 text-emerald-700 rounded-full font-medium">
+                      Founder
+                    </span>
+                  )}
+                  {depth > 0 && !comment.is_admin_reply && (
+                    <span className="text-[8px] sm:text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                      <FiCornerDownRight className="w-2 h-2" />
+                      Reply
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-400 mt-0.5">
+                  <FiClock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                  <span>{formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}</span>
+                  {comment.email && (
+                    <>
+                      <span>•</span>
+                      <FiMail className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                      <span className="truncate max-w-[100px]">{comment.email}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Comment Text */}
+          <p className="text-gray-600 text-xs sm:text-sm ml-7 sm:ml-9">
+            {comment.comment}
+          </p>
+
+          {/* Reply button - Only show if logged in and depth less than max */}
+          {user && depth < maxDepth && (
+            <div className="mt-2 ml-7 sm:ml-9">
+              {replyingTo === comment.id ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={(el) => { replyInputRefs.current[comment.id] = el; }}
+                    type="text"
+                    value={replyText[comment.id] || ''}
+                    onChange={(e) => setReplyText(prev => ({ ...prev, [comment.id]: e.target.value }))}
+                    placeholder={`Reply to ${comment.name}...`}
+                    className="flex-1 text-black px-3 py-2 text-sm border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    autoFocus
+                    disabled={isSubmittingReply[comment.id]}
+                  />
+                  <button
+                    onClick={() => handleReplySubmit(comment.id)}
+                    disabled={isSubmittingReply[comment.id] || !replyText[comment.id]?.trim()}
+                    className="px-3 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm rounded-lg hover:shadow-lg transition-all flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSubmittingReply[comment.id] ? (
+                      <FiLoader className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <FiSend className="w-4 h-4" />
+                    )}
+                    <span>Send</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setReplyingTo(null);
+                      setReplyText(prev => ({ ...prev, [comment.id]: '' }));
+                    }}
+                    className="px-3 py-2 bg-gray-100 text-gray-600 text-sm rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setReplyingTo(comment.id);
+                    setTimeout(() => replyInputRefs.current[comment.id]?.focus(), 100);
+                  }}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+                >
+                  <FiMessageCircle className="w-3 h-3" />
+                  Reply
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Nested replies */}
+          {hasReplies && (
+            <div className="mt-3 space-y-2">
+              {comment.replies?.map((reply) => (
+                <CommentComponent key={reply.id} comment={reply} depth={depth + 1} />
+              ))}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    );
+  };
+
+  const getYoutubeEmbedUrl = (url: string): string | undefined => {
+    if (!url) return undefined;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    if (match && match[2].length === 11) {
+      return `https://www.youtube.com/embed/${match[2]}?autoplay=0&rel=0`;
+    }
+    return undefined;
+  };
+
+  const handleLike = async () => {
+    if (!user) {
+      setPendingAction({ type: 'like' });
+      setShowLoginModal(true);
+      return;
+    }
+
+    if (isLiking) return;
+    setIsLiking(true);
+    
+    try {
+      await onLike(post.id);
+      // Toggle the liked state
+      setHasLiked(!hasLiked);
+      // Update the post's like count in the UI
+      // This would typically come from the response
+      // For now, we'll just let the parent component handle it
+    } catch (error) {
+      toast.error('Failed to update like');
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!user) {
+      setPendingAction({ type: 'comment' });
+      setShowLoginModal(true);
+      return;
+    }
+
+    if (!commentText.trim()) {
+      toast.error('Please write a comment');
+      return;
+    }
+    
+    setIsSubmittingComment(true);
+    
+    try {
+      const userName = getUserDisplayName();
+      await onAddComment(post.id, userName, commentText);
+      setCommentText('');
+      setShowAllComments(true);
+      
+      // Refresh comments after adding new one
+      const updatedComments = await postService.getPublicPostComments(post.id);
+      setComments(updatedComments.comments || []);
+    } catch (error) {
+      toast.error('Failed to add comment');
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!isAdmin) {
+      toast.error('Only admin can delete posts');
+      return;
+    }
+
+    try {
+      await onDelete(post.id);
+      setShowDeleteModal(false);
+      toast.success('Post deleted successfully!');
+    } catch (error) {
+      toast.error('Failed to delete post');
+    }
+  };
+
+  const formattedDate = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
 
   // Build media array
   const allMedia = [
@@ -123,7 +492,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
       video.currentTime = 1; // Seek to 1 second
       video.muted = true;
       
-      // Set loading state
       setLoadingThumbnails(prev => ({ ...prev, [videoId]: true }));
       
       video.onloadeddata = () => {
@@ -157,7 +525,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
       for (const video of uploadedVideos) {
         const videoId = video.url.split('?')[0]; // Use URL without timestamp as ID
         
-        // Skip if already loaded, errored, or loading
         if (videoThumbnails[videoId] || thumbnailErrors[videoId] || loadingThumbnails[videoId]) continue;
         
         try {
@@ -172,28 +539,15 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
     if (hasMedia) {
       loadThumbnails();
     }
-  }, [post.id]); // Re-run when post changes
+  }, [post.id]);
 
-  // Check if mobile on mount and resize
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 640);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  const nextImage = () => {
+    setActiveImageIndex((prev) => (prev + 1) % totalMedia);
+  };
 
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  const prevImage = () => {
+    setActiveImageIndex((prev) => (prev - 1 + totalMedia) % totalMedia);
+  };
 
   // Scroll to comments when expanded
   useEffect(() => {
@@ -206,88 +560,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
       }, 100);
     }
   }, [showAllComments]);
-
-  const getYoutubeEmbedUrl = (url: string): string | undefined => {
-    if (!url) return undefined;
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    if (match && match[2].length === 11) {
-      return `https://www.youtube.com/embed/${match[2]}?autoplay=0&rel=0`;
-    }
-    return undefined;
-  };
-
-  const handleLike = async () => {
-    if (!user) {
-      setPendingAction({ type: 'like' });
-      setShowLoginModal(true);
-      return;
-    }
-
-    if (isLiking) return;
-    setIsLiking(true);
-    
-    try {
-      await onLike(post.id);
-    } catch (error) {
-      toast.error('Failed to update like');
-    } finally {
-      setIsLiking(false);
-    }
-  };
-
-  const handleSubmitComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!user) {
-      setPendingAction({ type: 'comment' });
-      setShowLoginModal(true);
-      return;
-    }
-
-    if (!commentText.trim()) {
-      toast.error('Please write a comment');
-      return;
-    }
-    
-    setIsSubmittingComment(true);
-    
-    try {
-      const userName = getUserDisplayName();
-      await onAddComment(post.id, userName, commentText);
-      setCommentText('');
-      setShowAllComments(true);
-    } catch (error) {
-      toast.error('Failed to add comment');
-    } finally {
-      setIsSubmittingComment(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!isAdmin) {
-      toast.error('Only admin can delete posts');
-      return;
-    }
-
-    try {
-      await onDelete(post.id);
-      setShowDeleteModal(false);
-      toast.success('Post deleted successfully!');
-    } catch (error) {
-      toast.error('Failed to delete post');
-    }
-  };
-
-  const formattedDate = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
-
-  const nextImage = () => {
-    setActiveImageIndex((prev) => (prev + 1) % totalMedia);
-  };
-
-  const prevImage = () => {
-    setActiveImageIndex((prev) => (prev - 1 + totalMedia) % totalMedia);
-  };
 
   const UserProfile = () => (
     <div className="flex items-center gap-3 sm:gap-4">
@@ -338,14 +610,12 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
             {isCurrentVideo ? (
               <div className="relative w-full h-full">
                 {isCurrentYoutube ? (
-                  // YouTube video - show YouTube thumbnail
                   <img
                     src={`https://img.youtube.com/vi/${currentMedia.url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/)?.[2] || ''}/maxresdefault.jpg`}
                     alt="Video thumbnail"
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  // Uploaded video - show generated thumbnail or fallback
                   <>
                     {thumbnailUrl && !hasThumbnailError ? (
                       <img
@@ -357,7 +627,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                       <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
                         {isLoadingThumbnail ? (
                           <div className="text-center">
-                            <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                            <div className="w-12 h-12 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                             <p className="text-gray-400 text-sm">Loading thumbnail...</p>
                           </div>
                         ) : (
@@ -371,10 +641,8 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                   </>
                 )}
                 
-                {/* Gradient overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 
-                {/* Play button overlay */}
                 <div 
                   onClick={() => setSelectedMedia(currentMedia)}
                   className="absolute inset-0 flex items-center justify-center cursor-pointer group"
@@ -388,7 +656,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                 </div>
               </div>
             ) : (
-              // Image display
               <>
                 <Image
                   src={currentMedia.url}
@@ -401,7 +668,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
               </>
             )}
 
-            {/* Media counter */}
             {totalMedia > 1 && (
               <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 shadow-lg flex items-center gap-1">
                 <FiCamera className="w-3 h-3" />
@@ -409,7 +675,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
               </div>
             )}
 
-            {/* Video indicator */}
             {isCurrentVideo && (
               <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 shadow-lg flex items-center gap-1">
                 <FiVideo className="w-3 h-3" />
@@ -417,7 +682,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
               </div>
             )}
 
-            {/* Navigation arrows */}
             {totalMedia > 1 && (
               <>
                 <button
@@ -440,7 +704,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
             )}
           </div>
 
-          {/* Thumbnail strip */}
           {totalMedia > 1 && (
             <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide bg-gradient-to-r from-gray-50 to-white border-t border-gray-200/50">
               {allMedia.map((media, idx) => {
@@ -479,7 +742,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                             ) : (
                               <div className="w-full h-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
                                 {isLoadingThumb ? (
-                                  <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                                  <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
                                 ) : (
                                   <FiFilm className="w-5 h-5 text-white/70" />
                                 )}
@@ -511,15 +774,18 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
     );
   };
 
+  // Build comment tree
+  const commentTree = buildCommentTree(comments);
+
   // Get comments to display based on showAllComments state
   const getDisplayComments = () => {
-    if (!sortedComments || sortedComments.length === 0) return [];
-    if (showAllComments) return sortedComments;
-    return [sortedComments[0]];
+    if (commentTree.length === 0) return [];
+    if (showAllComments) return commentTree;
+    return [commentTree[0]];
   };
 
   const displayComments = getDisplayComments();
-  const hasMoreComments = sortedComments.length > 1 && !showAllComments;
+  const hasMoreComments = commentTree.length > 1 && !showAllComments;
 
   return (
     <>
@@ -565,10 +831,11 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                 className="flex items-center gap-2 text-gray-700 hover:text-red-500 transition-colors group"
               >
                 <div className="relative">
+                  {/* Use hasLiked state instead of checking post.likesCount > 0 */}
                   <FiHeart className={`w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110 ${
-                    post.likesCount > 0 ? 'fill-red-500 text-red-500' : ''
+                    hasLiked ? 'fill-red-500 text-red-500' : ''
                   }`} />
-                  {post.likesCount > 0 && (
+                  {hasLiked && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                   )}
                 </div>
@@ -591,7 +858,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                 className="flex items-center gap-2 text-gray-700 hover:text-emerald-600 transition-colors group"
               >
                 <FiMessageCircle className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110" />
-                <span className="text-sm sm:text-base font-semibold">{sortedComments.length}</span>
+                <span className="text-sm sm:text-base font-semibold">{commentTree.length}</span>
               </button>
             </div>
           </div>
@@ -611,45 +878,30 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm sm:text-base font-semibold text-gray-800 flex items-center gap-2">
                     <FiMessageCircle className="text-emerald-600" />
-                    Responses ({sortedComments.length})
-                    {sortedComments.length > 0 && (
+                    Responses ({commentTree.length})
+                    {commentTree.length > 0 && (
                       <span className="text-[10px] text-emerald-500 font-normal">
                         (Newest first)
                       </span>
                     )}
                   </h4>
                   <button
-                    onClick={() => setShowComments(false)}
+                    onClick={() => {
+                      setShowComments(false);
+                      setReplyingTo(null);
+                    }}
                     className="p-1 hover:bg-gray-200 rounded-full transition-colors"
                   >
                     <FiX className="w-4 h-4 text-gray-500" />
                   </button>
                 </div>
 
+                {/* Comments thread */}
                 <div className="space-y-3 max-h-60 sm:max-h-80 overflow-y-auto pr-2 custom-scrollbar">
-                  {sortedComments.length > 0 ? (
+                  {commentTree.length > 0 ? (
                     <>
                       {displayComments.map((comment) => (
-                        <div key={comment.id} className="bg-white rounded-xl p-3 sm:p-4 shadow-sm border border-gray-100">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-r from-emerald-500 to-green-500 flex items-center justify-center text-white font-semibold text-xs sm:text-sm shadow-md">
-                                {comment.name.charAt(0).toUpperCase()}
-                              </div>
-                              <div>
-                                <span className="font-semibold text-gray-800 text-xs sm:text-sm">
-                                  {comment.name}
-                                </span>
-                                <span className="text-[10px] sm:text-xs text-gray-400 ml-2">
-                                  {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <p className="text-gray-600 text-xs sm:text-sm ml-9 sm:ml-10">
-                            {comment.comment}
-                          </p>
-                        </div>
+                        <CommentComponent key={comment.id} comment={comment} />
                       ))}
 
                       {hasMoreComments && (
@@ -660,11 +912,11 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                           className="w-full py-3 text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors"
                         >
                           <FiChevronDown className="w-4 h-4" />
-                          View {sortedComments.length - 1} older comment{sortedComments.length - 1 !== 1 ? 's' : ''}
+                          View {commentTree.length - 1} more comment{commentTree.length - 1 !== 1 ? 's' : ''}
                         </motion.button>
                       )}
 
-                      {showAllComments && sortedComments.length > 1 && (
+                      {showAllComments && commentTree.length > 1 && (
                         <motion.button
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
@@ -699,7 +951,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                       </span>
                       {isAdmin && (
                         <span className="px-2 py-0.5 text-[10px] bg-emerald-100 text-emerald-700 rounded-full">
-                          Admin
+                          Founder
                         </span>
                       )}
                     </div>
@@ -740,7 +992,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                         className="text-emerald-600 hover:underline font-medium"
                       >
                         login
-                      </button> to comment
+                      </button> to comment or reply
                     </p>
                   )}
                 </form>
@@ -756,6 +1008,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
         onClose={() => {
           setShowLoginModal(false);
           setPendingAction(null);
+          setReplyingTo(null);
         }}
         onSuccess={() => {
           if (pendingAction?.type === 'like') {
@@ -764,6 +1017,12 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
             setShowComments(true);
             setShowAllComments(false);
             setTimeout(() => commentInputRef.current?.focus(), 100);
+          } else if (pendingAction?.type === 'reply' && replyingTo) {
+            setShowComments(true);
+            setTimeout(() => {
+              setReplyingTo(replyingTo);
+              setTimeout(() => replyInputRefs.current[replyingTo]?.focus(), 100);
+            }, 100);
           }
           setPendingAction(null);
         }}

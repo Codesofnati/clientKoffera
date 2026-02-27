@@ -165,46 +165,53 @@ export const postService = {
       throw error;
     }
   },
-  // Add this method for public comments (user-facing)
-async getPublicPostComments(postId: number): Promise<{ comments: any[] }> {
-  try {
-    // Use the public endpoint instead of admin
-    const response = await api.get(`/posts/${postId}/comments`);
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching public comments:", error);
-    throw error;
-  }
-},
-// In postService.ts
-async replyToComment(commentId: number, replyText: string): Promise<Comment> {
-  try {
-    const response = await api.post(`/comments/${commentId}/replies`, {
-      comment: replyText
-    });
-    return response.data;
-  } catch (error) {
-    console.error("Error replying to comment:", error);
-    throw error;
-  }
-},
 
-  // In postService.ts
-async likePost(id: number): Promise<{ likesCount: number }> {
-  try {
-    const response = await api.post(`/posts/${id}/like`);
-    return response.data; // This should return { likesCount: number }
-  } catch (error) {
-    console.error("❌ Error in likePost:", error);
-    throw error;
-  }
-},
+  // Get public comments for a post
+  async getPublicPostComments(postId: number): Promise<{ comments: any[] }> {
+    try {
+      const response = await api.get(`/posts/${postId}/comments`);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching public comments:", error);
+      throw error;
+    }
+  },
+
+  // Reply to a comment - FIXED: Now takes 2 arguments (commentId, replyText)
+  async replyToComment(commentId: number, replyText: string): Promise<any> {
+    try {
+      // First get the postId to construct the correct URL
+      // You might need to pass postId as well, but the endpoint expects postId in URL
+      // This assumes your backend endpoint is /posts/:postId/comments/:commentId/reply
+      // If your endpoint is different, adjust accordingly
+      
+      // For now, we'll use the commentId to get the post
+      const response = await api.post(`/admin/comments/${commentId}/reply`, {
+        reply: replyText
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error replying to comment:", error);
+      throw error;
+    }
+  },
+
+  // Like a post
+  async likePost(id: number): Promise<{ likesCount: number }> {
+    try {
+      const response = await api.post(`/posts/${id}/like`);
+      return response.data;
+    } catch (error) {
+      console.error("❌ Error in likePost:", error);
+      throw error;
+    }
+  },
 
   // Add comment (requires auth)
   async addComment(postId: number, name: string, comment: string): Promise<Comment> {
     try {
       const response = await api.post(`/posts/${postId}/comments`, {
-        comment: comment, // name is taken from auth
+        comment: comment,
       });
       return response.data.comment;
     } catch (error) {
