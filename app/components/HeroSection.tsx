@@ -7,7 +7,7 @@ import { Coffee, Leaf, Award, Heart, Droplet } from "lucide-react";
 import Link from "next/link";
 
 type Slide =
-  | { type: "video"; src: string }
+  | { type: "video"; src: string; id: number }
   | { type: "image"; src: string };
 
 export default function Hero() {
@@ -18,7 +18,7 @@ export default function Hero() {
   const [fade, setFade] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const [loading, setLoading] = useState(true);
-  const [videoFailed, setVideoFailed] = useState(false);
+  const [videoFailed, setVideoFailed] = useState<{ [key: number]: boolean }>({});
   const [isPlaying, setIsPlaying] = useState(true);
   const [showText, setShowText] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -27,21 +27,23 @@ export default function Hero() {
   // State for hero images from database
   const [heroFirstImage, setHeroFirstImage] = useState<string>('/buna2.jpg');
 
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRefs = useRef<{ [key: number]: HTMLVideoElement | null }>({});
   const fadeTimeout = useRef<NodeJS.Timeout | null>(null);
   const progressInterval = useRef<NodeJS.Timeout | null>(null);
   const slideTimeout = useRef<NodeJS.Timeout | null>(null);
-const [floatingBeans, setFloatingBeans] = useState<
-  { left: string; top: string }[]
->([]);
+  
+  const [floatingBeans, setFloatingBeans] = useState<
+    { left: string; top: string }[]
+  >([]);
 
-useEffect(() => {
-  const beans = Array.from({ length: 6 }).map(() => ({
-    left: `${Math.random() * 100}%`,
-    top: `${Math.random() * 100}%`,
-  }));
-  setFloatingBeans(beans);
-}, []);
+  useEffect(() => {
+    const beans = Array.from({ length: 6 }).map(() => ({
+      left: `${Math.random() * 100}%`,
+      top: `${Math.random() * 100}%`,
+    }));
+    setFloatingBeans(beans);
+  }, []);
+
   /* --------------------------------------------------
      FETCH HERO IMAGES FROM DATABASE
   -------------------------------------------------- */
@@ -58,10 +60,6 @@ useEffect(() => {
             setHeroFirstImage(data1.url);
           }
         }
-
-       
-
-        
       } catch (err) {
         console.warn("Hero images unavailable, using default fallbacks");
       }
@@ -71,34 +69,43 @@ useEffect(() => {
   }, [API]);
 
   /* --------------------------------------------------
-     LOAD HERO SLIDES
+     LOAD HERO SLIDES - Fetch 3 latest videos
   -------------------------------------------------- */
   useEffect(() => {
     async function loadHero() {
-      // ✅ FIX: Only include images that exist
       const imageSlides: Slide[] = [];
       
-      // Add heroFirstImage if it exists (always true as it has fallback)
+      // Add heroFirstImage if it exists
       if (heroFirstImage) {
         imageSlides.push({ type: "image", src: heroFirstImage });
       }
       
-     
       try {
-        const res = await fetch(`${API}/videos/latest`, {
+        // Fetch 3 latest videos
+        const res = await fetch(`${API}/videos/latest-three`, {
           cache: "no-store",
         });
 
         if (!res.ok) throw new Error("Video fetch failed");
-        const data = await res.json();
-        if (!data?.url) throw new Error("No video URL");
-
-        // If video exists, add it at the beginning
-        setSlides([{ type: "video", src: `${data.url}?t=${Date.now()}` }, ...imageSlides]);
+        const videos = await res.json();
+        
+        if (videos && videos.length > 0) {
+          // Create video slides in descending order (newest first)
+          const videoSlides: Slide[] = videos.map((video: any) => ({
+            type: "video",
+            src: `${video.url}?t=${Date.now()}`,
+            id: video.id
+          }));
+          
+          // Combine videos first, then image
+          setSlides([...videoSlides, ...imageSlides]);
+        } else {
+          // No videos, just images
+          setSlides(imageSlides);
+        }
       } catch (err) {
         console.warn("Video unavailable, using images only");
-        setVideoFailed(true);
-        // ✅ FIX: Only use the actual images we have, no hardcoded third image
+        setVideoFailed({});
         setSlides(imageSlides);
         setCurrentIndex(0);
       } finally {
@@ -108,7 +115,7 @@ useEffect(() => {
     }
 
     // Only load when we have at least the fallback images
-    if (heroFirstImage ) {
+    if (heroFirstImage) {
       loadHero();
     }
   }, [API, heroFirstImage]);
@@ -162,7 +169,8 @@ useEffect(() => {
     const currentSlide = slides[currentIndex];
     
     if (currentSlide.type === "video") {
-      if (videoRef.current && !isVideoEnded) {
+      const videoElement = videoRefs.current[currentSlide.id];
+      if (videoElement && !isVideoEnded) {
         return;
       }
     } else {
@@ -194,53 +202,72 @@ useEffect(() => {
      VIDEO HANDLERS
   -------------------------------------------------- */
   const toggleMute = () => {
-    if (!videoRef.current) return;
-    videoRef.current.muted = !videoRef.current.muted;
-    setIsMuted(videoRef.current.muted);
+    const currentSlide = slides[currentIndex];
+    if (currentSlide.type !== "video") return;
+    
+    const videoElement = videoRefs.current[currentSlide.id];
+    if (!videoElement) return;
+    
+    videoElement.muted = !videoElement.muted;
+    setIsMuted(videoElement.muted);
   };
 
   const togglePlay = () => {
-    if (!videoRef.current || slides[currentIndex].type !== "video") return;
-    if (videoRef.current.paused) {
-      videoRef.current.play();
+    const currentSlide = slides[currentIndex];
+    if (currentSlide.type !== "video") return;
+    
+    const videoElement = videoRefs.current[currentSlide.id];
+    if (!videoElement) return;
+    
+    if (videoElement.paused) {
+      videoElement.play();
       setIsPlaying(true);
     } else {
-      videoRef.current.pause();
+      videoElement.pause();
       setIsPlaying(false);
     }
   };
 
-  const handleCanPlay = () => {
-    if (videoRef.current) {
-      videoRef.current.playbackRate = 1.0;
-      videoRef.current.play();
+  const handleCanPlay = (videoId: number) => {
+    const videoElement = videoRefs.current[videoId];
+    const currentSlide = slides[currentIndex];
+    
+    if (videoElement && currentSlide.type === "video" && currentSlide.id === videoId) {
+      videoElement.playbackRate = 1.0;
+      videoElement.play();
       setIsPlaying(true);
     }
   };
 
-  const handleVideoEnd = () => {
-    setIsVideoEnded(true);
-    setProgress(100);
-    
-    setTimeout(() => {
-      goToNextSlide();
-    }, 500);
+  const handleVideoEnd = (videoId: number) => {
+    const currentSlide = slides[currentIndex];
+    if (currentSlide.type === "video" && currentSlide.id === videoId) {
+      setIsVideoEnded(true);
+      setProgress(100);
+      
+      setTimeout(() => {
+        goToNextSlide();
+      }, 500);
+    }
   };
 
-  const handleVideoTimeUpdate = () => {
-    if (!videoRef.current || slides[currentIndex].type !== "video") return;
+  const handleVideoTimeUpdate = (videoId: number) => {
+    const currentSlide = slides[currentIndex];
+    if (currentSlide.type !== "video" || currentSlide.id !== videoId) return;
     
-    const video = videoRef.current;
-    const percentage = (video.currentTime / video.duration) * 100;
+    const videoElement = videoRefs.current[videoId];
+    if (!videoElement) return;
+    
+    const percentage = (videoElement.currentTime / videoElement.duration) * 100;
     setProgress(percentage);
   };
 
-  const handleVideoError = () => {
-    console.warn("Video playback error, switching to images");
-    setVideoFailed(true);
-    setSlides(prev => prev.filter(s => s.type === "image"));
-    setCurrentIndex(0);
-    setIsVideoEnded(false);
+  const handleVideoError = (videoId: number) => {
+    console.warn(`Video ${videoId} playback error`);
+    setVideoFailed(prev => ({ ...prev, [videoId]: true }));
+    
+    // Remove failed video from slides
+    setSlides(prev => prev.filter(s => s.type !== "video" || s.id !== videoId));
   };
 
   const nextSlide = () => {
@@ -258,7 +285,7 @@ useEffect(() => {
       setCurrentIndex(prevIndex);
       setFade(true);
       setIsVideoEnded(false);
-      setIsPlaying(prevIndex === 0);
+      setIsPlaying(slides[prevIndex].type === "video");
     }, 500);
   };
 
@@ -276,7 +303,7 @@ useEffect(() => {
   };
 
   /* --------------------------------------------------
-     SIMPLIFIED LOADING UI - Only hero content
+     LOADING UI
   -------------------------------------------------- */
   if (loading) {
     return (
@@ -293,13 +320,13 @@ useEffect(() => {
         {/* Animated coffee beans */}
         <div className="absolute inset-0 overflow-hidden">
           {floatingBeans.map((bean, i) => (
-  <motion.div
-    key={i}
-    className="absolute"
-    style={{
-      left: bean.left,
-      top: bean.top,
-    }}
+            <motion.div
+              key={i}
+              className="absolute"
+              style={{
+                left: bean.left,
+                top: bean.top,
+              }}
               animate={{ 
                 y: [0, -30, 0],
                 rotate: [0, 180, 360],
@@ -412,8 +439,13 @@ useEffect(() => {
     );
   }
 
+  if (slides.length === 0) {
+    return null;
+  }
+
   const currentSlide = slides[currentIndex];
   const isVideo = currentSlide.type === "video";
+  const currentVideoId = isVideo ? currentSlide.id : undefined;
 
   return (
     <section id="home" className="relative w-full h-screen overflow-hidden bg-[#0A1F0A]">
@@ -428,18 +460,18 @@ useEffect(() => {
             transition={{ duration: 0.8 }}
             className="w-full h-full"
           >
-            {isVideo ? (
+            {isVideo && currentVideoId !== undefined ? (
               <video
-                ref={videoRef}
+                ref={el => { videoRefs.current[currentVideoId] = el; }}
                 src={currentSlide.src}
                 autoPlay
                 muted={isMuted}
                 playsInline
                 loop={false}
-                onEnded={handleVideoEnd}
-                onError={handleVideoError}
-                onCanPlay={handleCanPlay}
-                onTimeUpdate={handleVideoTimeUpdate}
+                onEnded={() => handleVideoEnd(currentVideoId)}
+                onError={() => handleVideoError(currentVideoId)}
+                onCanPlay={() => handleCanPlay(currentVideoId)}
+                onTimeUpdate={() => handleVideoTimeUpdate(currentVideoId)}
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 className="w-full h-full object-cover"
@@ -497,27 +529,25 @@ useEffect(() => {
               <div className="h-px w-16 bg-gradient-to-l from-emerald-500 to-transparent" />
             </motion.div>
 
-            
             {/* CTA Buttons */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: showText ? 1 : 0, y: showText ? 0 : 20 }}
               transition={{ duration: 0.8, delay: 0.3 }}
-              className="flex mt-40 md:mt-0 flex-wrap gap-4 justify-center"
+              className="flex mt-0 md:mt-0 flex-wrap gap-4 justify-center"
             >
-                           <Link href="/contact">
+              <Link href="/contact">
+                <button className="group relative px-8 py-3 bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-600 text-white font-semibold rounded-full overflow-hidden transition-all duration-300 transform hover:scale-105 shadow-lg">
+                  <span className="relative z-10">Contact Us</span>
+                  <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 via-emerald-400 to-green-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                </button>
+              </Link>
 
-              <button className="group relative px-8 py-3 bg-gradient-to-r from-emerald-600 via-emerald-500 to-green-600 text-white font-semibold rounded-full overflow-hidden transition-all duration-300 transform hover:scale-105 shadow-lg">
-                <span className="relative z-10">Contact Us</span>
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 via-emerald-400 to-green-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              </button>
-                           </Link>
-
-             <Link href="/posts">
-              <button className="px-8 py-3 border-2 border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/30 font-semibold rounded-full transition-all duration-300 transform hover:scale-105">
-                Posts
-              </button>
-             </Link>
+              <Link href="/posts">
+                <button className="px-8 py-3 border-2 border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/30 font-semibold rounded-full transition-all duration-300 transform hover:scale-105">
+                  Posts
+                </button>
+              </Link>
             </motion.div>
 
             {/* Feature Icons */}
@@ -555,7 +585,7 @@ useEffect(() => {
         )}
 
         {/* Mute Button */}
-        {isVideo && !videoFailed && (
+        {isVideo && (
           <button
             onClick={toggleMute}
             className="p-2 bg-white/10 rounded-full text-white hover:bg-white/20 transition-all"
