@@ -497,19 +497,7 @@ useEffect(() => {
               <div className="h-px w-16 bg-gradient-to-l from-emerald-500 to-transparent" />
             </motion.div>
 
-            {/* Description */}
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: showText ? 1 : 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="text-base sm:text-lg md:text-xl text-gray-200 max-w-2xl mx-auto leading-relaxed mb-8"
-            >
-             The company focuses on sustainable practices, traceability, and delivering
-specialty-grade green coffee to international markets. Koffera Coffee aims to
-promote Ethiopia’s rich coffee heritage while supporting ethical sourcing and global
-quality standards
-            </motion.p>
-
+            
             {/* CTA Buttons */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
