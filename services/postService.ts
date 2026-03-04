@@ -1,4 +1,4 @@
-// services/postService.ts (updated)
+// services/postService.ts (updated with TikTok support)
 import { api } from '@/lib/axiosConfig';
 
 export interface PostImage {
@@ -27,13 +27,14 @@ export interface Post {
   description: string;
   videoUrl?: string;
   youtubeUrl?: string;
+  tiktokUrl?: string; // Add this line
   videoCaption?: string;
   created_at: string;
   updated_at: string;
   images: PostImage[];
   likesCount: number;
   comments: Comment[];
-  liked_by_user?: boolean; // Add this field to track if current user liked the post
+  liked_by_user?: boolean;
 }
 
 export interface CreatePostData {
@@ -42,6 +43,7 @@ export interface CreatePostData {
   images: File[];
   video?: File;
   youtubeUrl?: string;
+  tiktokUrl?: string; // Add this line
   videoCaption?: string;
 }
 
@@ -120,6 +122,10 @@ export const postService = {
         formData.append('youtube_url', data.youtubeUrl);
       }
       
+      if (data.tiktokUrl) { // Add this block
+        formData.append('tiktok_url', data.tiktokUrl);
+      }
+      
       if (data.video) {
         formData.append('video', data.video);
       }
@@ -151,6 +157,7 @@ export const postService = {
       if (data.description) formData.append('description', data.description);
       if (data.videoCaption) formData.append('video_caption', data.videoCaption);
       if (data.youtubeUrl) formData.append('youtube_url', data.youtubeUrl);
+      if (data.tiktokUrl) formData.append('tiktok_url', data.tiktokUrl); // Add this line
       if (data.video) formData.append('video', data.video);
       
       if (data.images) {

@@ -1,4 +1,4 @@
-// components/PostCard.tsx (updated with proper like functionality and comment count including replies)
+// components/PostCard.tsx (updated with TikTok support)
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -20,9 +20,11 @@ import {
   FiLoader,
   FiSend,
   FiMail,
-  FiCornerDownRight
+  FiCornerDownRight,
+  FiExternalLink
 } from 'react-icons/fi';
 import { FaPlay, FaRegSmile } from 'react-icons/fa';
+import { SiTiktok } from 'react-icons/si';
 import { formatDistanceToNow } from 'date-fns';
 import Image from 'next/image';
 import toast from 'react-hot-toast';
@@ -60,7 +62,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   const [isLiking, setIsLiking] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
-  const [selectedMedia, setSelectedMedia] = useState<{ type: 'image' | 'video', url: string } | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<{ type: 'image' | 'video' | 'tiktok', url: string } | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -296,7 +298,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                 <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-400 mt-0.5">
                   <FiClock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   <span>{formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}</span>
-                  
                 </div>
               </div>
             </div>
@@ -382,6 +383,13 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
     return undefined;
   };
 
+  // Function to get TikTok video ID
+  const getTiktokVideoId = (url: string): string | null => {
+    const regex = /\/video\/(\d+)/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+  };
+
   const handleLike = async () => {
     if (!user) {
       setPendingAction({ type: 'like' });
@@ -465,12 +473,17 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
     }
   };
 
+  const handleTiktokClick = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const formattedDate = formatDistanceToNow(new Date(post.created_at), { addSuffix: true });
 
-  // Build media array
+  // Build media array - Add TikTok to the media array
   const allMedia = [
-    ...(post.youtubeUrl ? [{ type: 'video' as const, url: post.youtubeUrl, caption: post.videoCaption, isYoutube: true }] : []),
-    ...(post.videoUrl ? [{ type: 'video' as const, url: post.videoUrl, caption: post.videoCaption, isYoutube: false }] : []),
+    ...(post.youtubeUrl ? [{ type: 'video' as const, url: post.youtubeUrl, caption: post.videoCaption, isYoutube: true, platform: 'youtube' }] : []),
+    ...(post.tiktokUrl ? [{ type: 'tiktok' as const, url: post.tiktokUrl, caption: post.videoCaption, platform: 'tiktok' }] : []),
+    ...(post.videoUrl ? [{ type: 'video' as const, url: post.videoUrl, caption: post.videoCaption, isYoutube: false, platform: 'upload' }] : []),
     ...(post.images?.map(img => ({ type: 'image' as const, url: img.url })) || [])
   ];
 
@@ -509,11 +522,11 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
     });
   };
 
-  // Load thumbnails for uploaded videos only (not YouTube)
+  // Load thumbnails for uploaded videos only (not YouTube or TikTok)
   useEffect(() => {
     const loadThumbnails = async () => {
       const uploadedVideos = allMedia.filter(media => 
-        media.type === 'video' && !media.isYoutube
+        media.type === 'video' && media.platform === 'upload'
       );
       
       for (const video of uploadedVideos) {
@@ -591,6 +604,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
 
     const currentMedia = allMedia[activeImageIndex];
     const isCurrentVideo = currentMedia.type === 'video';
+    const isCurrentTiktok = currentMedia.type === 'tiktok';
     const isCurrentYoutube = isCurrentVideo && currentMedia.isYoutube;
     const videoId = isCurrentVideo && !isCurrentYoutube ? currentMedia.url.split('?')[0] : null;
     const thumbnailUrl = videoId ? videoThumbnails[videoId] : null;
@@ -601,7 +615,30 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
       <div className="px-3 sm:px-4">
         <div className="relative w-full rounded-2xl overflow-hidden bg-gradient-to-br from-gray-900 to-gray-800 shadow-2xl border border-gray-200/20 group">
           <div className="relative aspect-[4/3] sm:aspect-video w-full">
-            {isCurrentVideo ? (
+            {isCurrentTiktok ? (
+              <div 
+                onClick={() => handleTiktokClick(currentMedia.url)}
+              className="relative w-full h-full bg-gradient-to-br from-emerald-500 to-green-600 cursor-pointer group"
+              >
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <SiTiktok className="w-20 h-20 text-white opacity-50 mx-auto mb-2" />
+                    <p className="text-white text-sm">Click to watch on TikTok</p>
+                  </div>
+                </div>
+                
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-600 rounded-full blur-xl opacity-50 group-hover:opacity-75 transition-opacity" />
+                    <div className="relative w-14 h-14 sm:w-20 sm:h-20 bg-white/95 backdrop-blur-sm rounded-full flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
+                      <FiExternalLink className="w-5 h-5 sm:w-7 sm:h-7 text-pink-600" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : isCurrentVideo ? (
               <div className="relative w-full h-full">
                 {isCurrentYoutube ? (
                   <img
@@ -676,6 +713,13 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
               </div>
             )}
 
+            {isCurrentTiktok && (
+              <div className="absolute bottom-3 left-3 bg-black/70 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 shadow-lg flex items-center gap-1">
+                <SiTiktok className="w-3 h-3" />
+                <span>TikTok</span>
+              </div>
+            )}
+
             {totalMedia > 1 && (
               <>
                 <button
@@ -702,6 +746,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
             <div className="flex gap-2 p-3 overflow-x-auto scrollbar-hide bg-gradient-to-r from-gray-50 to-white border-t border-gray-200/50">
               {allMedia.map((media, idx) => {
                 const isVideo = media.type === 'video';
+                const isTiktok = media.type === 'tiktok';
                 const isYoutube = isVideo && media.isYoutube;
                 const thumbVideoId = isVideo && !isYoutube ? media.url.split('?')[0] : null;
                 const thumbUrl = thumbVideoId ? videoThumbnails[thumbVideoId] : null;
@@ -717,7 +762,13 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                         : 'opacity-60 hover:opacity-100 ring-1 ring-gray-300'
                     }`}
                   >
-                    {isVideo ? (
+                    {isTiktok ? (
+                      <div className="relative w-full h-full bg-gradient-to-br from-pink-500 to-purple-600">
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <SiTiktok className="w-5 h-5 text-white" />
+                        </div>
+                      </div>
+                    ) : isVideo ? (
                       <div className="relative w-full h-full bg-gray-900">
                         {isYoutube ? (
                           <img
@@ -1074,9 +1125,9 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
         )}
       </AnimatePresence>
 
-      {/* Media Modal */}
+      {/* Media Modal - For images and videos only, TikTok handled separately */}
       <AnimatePresence>
-        {selectedMedia && (
+        {selectedMedia && selectedMedia.type !== 'tiktok' && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
