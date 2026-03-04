@@ -25,8 +25,7 @@ export default function Hero() {
   const [isVideoEnded, setIsVideoEnded] = useState(false);
   
   // State for hero images from database
-  const [heroFirstImage, setHeroFirstImage] = useState<string>('/hero1.jpg');
-  const [heroSecondImage, setHeroSecondImage] = useState<string>('/hero2.jpg');
+  const [heroFirstImage, setHeroFirstImage] = useState<string>('/buna2.jpg');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const fadeTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -60,16 +59,9 @@ useEffect(() => {
           }
         }
 
-        const res2 = await fetch(`${API}/images/latest/heroImages/heroSecondImage`, {
-          cache: "no-store",
-        });
+       
 
-        if (res2.ok) {
-          const data2 = await res2.json();
-          if (data2?.url) {
-            setHeroSecondImage(data2.url);
-          }
-        }
+        
       } catch (err) {
         console.warn("Hero images unavailable, using default fallbacks");
       }
@@ -91,11 +83,7 @@ useEffect(() => {
         imageSlides.push({ type: "image", src: heroFirstImage });
       }
       
-      // Add heroSecondImage if it exists (always true as it has fallback)
-      if (heroSecondImage) {
-        imageSlides.push({ type: "image", src: heroSecondImage });
-      }
-
+     
       try {
         const res = await fetch(`${API}/videos/latest`, {
           cache: "no-store",
@@ -120,10 +108,10 @@ useEffect(() => {
     }
 
     // Only load when we have at least the fallback images
-    if (heroFirstImage && heroSecondImage) {
+    if (heroFirstImage ) {
       loadHero();
     }
-  }, [API, heroFirstImage, heroSecondImage]);
+  }, [API, heroFirstImage]);
 
   /* --------------------------------------------------
      CLEAR ALL TIMEOUTS/INTERVALS
@@ -465,9 +453,9 @@ useEffect(() => {
             )}
             
             {/* Gradient Overlays */}
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/70 via-transparent to-green-950/70" />
-            <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/60 via-emerald-900/30 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/90 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-400/20 via-transparent to-green-950/50" />
+            <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/10 via-emerald-900/20 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/30 via-transparent to-transparent" />
           </motion.div>
         </AnimatePresence>
       </div>

@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: "https://koffera-coffee.vercel.app/sitemap.xml",
+    sitemap: "https://www.kofferacoffeeexport.com/sitemap.xml",
   };
 }

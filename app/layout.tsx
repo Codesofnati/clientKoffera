@@ -53,9 +53,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://koffera-coffee.vercel.app"),
+  metadataBase: new URL("https://www.kofferacoffeeexport.com"),
   title: {
-    default: "Koffera Coffee | Premium Ethiopian Coffee Exporter",
+    default: "Koffera Coffee Exporte",
     template: "%s | Koffera Coffee",
   },
   description: "Koffera Coffee is a premium Ethiopian coffee exporter delivering high-quality Arabica beans worldwide with sustainability and ethical sourcing.",
@@ -79,11 +79,11 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Koffera Coffee | Premium Ethiopian Coffee Exporter",
     description: "Exporting premium Ethiopian Arabica coffee with sustainability and integrity.",
-    url: "https://koffera-coffee.vercel.app",
+    url: "https://www.kofferacoffeeexport.com",
     siteName: "Koffera Coffee",
     images: [
       {
-        url: "https://koffera-coffee.vercel.app/og-image.png",
+        url: "https://www.kofferacoffeeexport.com/og-image.png",
         width: 1200,
         height: 630,
         alt: "Koffera Coffee Ethiopian Export",

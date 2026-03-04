@@ -11,9 +11,9 @@ import ContactUs from "./components/ContactUs";
 import AdminPostsPage from "./components/Posts";
 
 export const metadata: Metadata = {
-  title: "Premium Ethiopian Coffee Exporter",
+  title: "Ethiopian Coffee Exporter",
   description:
-    "Discover Koffera Coffee – exporting premium Ethiopian Arabica coffee worldwide with sustainability and quality.",
+    "Discover Koffera Coffee – exporting Ethiopian coffee worldwide with quality.",
 };
 
 <script
@@ -23,8 +23,8 @@ export const metadata: Metadata = {
       "@context": "https://schema.org",
       "@type": "Organization",
       name: "Koffera Coffee",
-      url: "https://koffera-coffee.vercel.app",
-      logo: "https://koffera-coffee.vercel.app/hero-logo.png",
+      url: "https://www.kofferacoffeeexport.com",
+      logo: "https://www.kofferacoffeeexport.com/og-image.png",
       sameAs: [
         "https://www.facebook.com/share/1BmywZfzue/?mibextid=wwXIfr",
         "https://www.instagram.com/fira_link_business_solution?igsh=b3BlZ3R1aWlwMTE3&utm_source=qr",

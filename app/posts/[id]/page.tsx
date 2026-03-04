@@ -573,7 +573,7 @@ export default function UserPostDetailPage() {
               {depth < maxDepth && (
                 <div className="mt-3">
                   {replyingTo === comment.id ? (
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="flex text-black flex-col sm:flex-row items-stretch sm:items-center gap-2">
                       <input
                         ref={(el) => { replyInputRefs.current[comment.id] = el; }}
                         type="text"

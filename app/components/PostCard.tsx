@@ -1,4 +1,4 @@
-// components/PostCard.tsx (updated with proper like functionality)
+// components/PostCard.tsx (updated with proper like functionality and comment count including replies)
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -7,16 +7,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiHeart, 
   FiMessageCircle, 
-  FiBookmark, 
-  FiShare2, 
-  FiMoreHorizontal, 
   FiX, 
-  FiTrash2, 
   FiClock,
   FiFilm,
   FiChevronLeft,
   FiChevronRight,
-  FiMoreVertical,
   FiCamera,
   FiVideo,
   FiAlertTriangle,
@@ -27,7 +22,7 @@ import {
   FiMail,
   FiCornerDownRight
 } from 'react-icons/fi';
-import { FaPlay, FaRegSmile, FaRegHeart, FaHeart, FaRegBookmark, FaBookmark } from 'react-icons/fa';
+import { FaPlay, FaRegSmile } from 'react-icons/fa';
 import { formatDistanceToNow } from 'date-fns';
 import Image from 'next/image';
 import toast from 'react-hot-toast';
@@ -45,9 +40,9 @@ interface ExtendedComment extends Comment {
 
 interface PostCardProps {
   post: Post;
-  onDelete: (id: number) => void;
-  onLike: (id: number) => void;
-  onAddComment: (postId: number, name: string, comment: string) => void;
+  onDelete: (id: number) => Promise<void>;
+  onLike: (id: number) => Promise<{ likesCount: number; liked: boolean }>;
+  onAddComment: (postId: number, name: string, comment: string) => Promise<void>;
   onDeleteComment: (postId: number, commentId: number) => void;
 }
 
@@ -66,8 +61,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<{ type: 'image' | 'video', url: string } | null>(null);
-  const [isBookmarked, setIsBookmarked] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -80,8 +73,8 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   const [replyText, setReplyText] = useState<{ [key: number]: string }>({});
   const [comments, setComments] = useState<ExtendedComment[]>(post.comments || []);
   const [isSubmittingReply, setIsSubmittingReply] = useState<{ [key: number]: boolean }>({});
-  // Add state to track if current user has liked the post
   const [hasLiked, setHasLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState(post.likesCount || 0);
   
   // State for video thumbnails
   const [videoThumbnails, setVideoThumbnails] = useState<{ [key: string]: string }>({});
@@ -89,45 +82,42 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   const [loadingThumbnails, setLoadingThumbnails] = useState<{ [key: string]: boolean }>({});
   
   const { user } = useSupabaseAuth();
-  const menuRef = useRef<HTMLDivElement>(null);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const replyInputRefs = useRef<{ [key: number]: HTMLInputElement | null }>({});
 
-  // Update comments when post prop changes
+  // Update comments and like status when post prop changes
   useEffect(() => {
     setComments(post.comments || []);
-  }, [post.comments]);
+    setLikesCount(post.likesCount || 0);
+  }, [post.comments, post.likesCount]);
 
   // Check if current user has liked this post
   useEffect(() => {
-    // You would typically check this from a separate API or from the post data
-    // For now, we'll simulate it based on user and localStorage or context
-    if (user) {
-      // You can implement this based on your backend response
-      // For example, if the post object includes a 'liked_by_user' field
-      // Or you can make an API call to check
-      
-      // Placeholder logic - replace with actual implementation
-      const checkIfLiked = async () => {
-        try {
-          // Example API call to check if user liked the post
-          // const response = await api.get(`/posts/${post.id}/liked`);
-          // setHasLiked(response.data.liked);
-          
-          // For now, we'll just use a simple approach
-          // This should be replaced with actual logic
-          setHasLiked(false); // Default to false, update based on actual data
-        } catch (error) {
-          console.error('Error checking like status:', error);
+    const checkIfLiked = async () => {
+      if (!user) {
+        setHasLiked(false);
+        return;
+      }
+
+      try {
+        // First check if the post already has liked_by_user field
+        if (post.liked_by_user !== undefined) {
+          setHasLiked(post.liked_by_user);
+          return;
         }
-      };
-      
-      checkIfLiked();
-    } else {
-      setHasLiked(false);
-    }
-  }, [user, post.id]);
+
+        // If not, make API call to check
+        const liked = await postService.checkIfUserLikedPost(post.id);
+        setHasLiked(liked);
+      } catch (error) {
+        console.error('Error checking like status:', error);
+        setHasLiked(false);
+      }
+    };
+    
+    checkIfLiked();
+  }, [user, post.id, post.liked_by_user]);
 
   // Get user's display name from Supabase user metadata
   const getUserDisplayName = (): string => {
@@ -194,7 +184,22 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
     );
   };
 
-  // Updated handleReplySubmit to use the new endpoint
+  // Function to count total comments including replies
+  const getTotalCommentsCount = (comments: ExtendedComment[]): number => {
+    let count = comments.length;
+    
+    const countReplies = (comment: ExtendedComment) => {
+      if (comment.replies && comment.replies.length > 0) {
+        count += comment.replies.length;
+        comment.replies.forEach(reply => countReplies(reply));
+      }
+    };
+    
+    comments.forEach(comment => countReplies(comment));
+    return count;
+  };
+
+  // Handle reply submission
   const handleReplySubmit = async (commentId: number) => {
     if (!user) {
       setPendingAction({ type: 'reply' });
@@ -211,16 +216,12 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
     setIsSubmittingReply(prev => ({ ...prev, [commentId]: true }));
 
     try {
-      // Use the dedicated reply endpoint
       const response = await api.post(`/posts/${post.id}/comments/${commentId}/reply`, {
         comment: replyText[commentId]
       });
       
       if (response.data && response.data.comment) {
         const newReply = response.data.comment;
-        
-        // Log to verify the response
-        console.log('New reply received:', newReply);
         
         // Add the new reply to the comments state
         setComments(prevComments => {
@@ -232,20 +233,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
       setReplyText((prev) => ({ ...prev, [commentId]: '' }));
       setReplyingTo(null);
       
-      toast.success(
-        <div className="flex items-center gap-2">
-          <FiSend className="w-4 h-4 text-emerald-600" />
-          <span>Reply sent successfully!</span>
-        </div>,
-        {
-          icon: '💬',
-          style: {
-            background: 'linear-gradient(to right, #d1fae5, #a7f3d0)',
-            color: '#065f46',
-            border: '1px solid #a7f3d0',
-          },
-        }
-      );
+      toast.success('Reply sent successfully!');
     } catch (error) {
       console.error('Reply error:', error);
       toast.error('Failed to send reply');
@@ -308,13 +296,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                 <div className="flex items-center gap-2 text-[10px] sm:text-xs text-gray-400 mt-0.5">
                   <FiClock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   <span>{formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}</span>
-                  {comment.email && (
-                    <>
-                      <span>•</span>
-                      <FiMail className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
-                      <span className="truncate max-w-[100px]">{comment.email}</span>
-                    </>
-                  )}
+                  
                 </div>
               </div>
             </div>
@@ -411,13 +393,21 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
     setIsLiking(true);
     
     try {
-      await onLike(post.id);
-      // Toggle the liked state
-      setHasLiked(!hasLiked);
-      // Update the post's like count in the UI
-      // This would typically come from the response
-      // For now, we'll just let the parent component handle it
+      // Call the parent onLike function and wait for the response
+      const result = await onLike(post.id);
+      
+      // If the result contains liked and likesCount, update local state
+      if (result && typeof result === 'object') {
+        if ('liked' in result) {
+          setHasLiked(result.liked);
+        }
+        if ('likesCount' in result) {
+          setLikesCount(result.likesCount);
+        }
+      }
+      
     } catch (error) {
+      console.error('Like error:', error);
       toast.error('Failed to update like');
     } finally {
       setIsLiking(false);
@@ -449,7 +439,10 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
       // Refresh comments after adding new one
       const updatedComments = await postService.getPublicPostComments(post.id);
       setComments(updatedComments.comments || []);
+      
+      toast.success('Comment added successfully!');
     } catch (error) {
+      console.error('Comment error:', error);
       toast.error('Failed to add comment');
     } finally {
       setIsSubmittingComment(false);
@@ -467,6 +460,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
       setShowDeleteModal(false);
       toast.success('Post deleted successfully!');
     } catch (error) {
+      console.error('Delete error:', error);
       toast.error('Failed to delete post');
     }
   };
@@ -777,6 +771,9 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
   // Build comment tree
   const commentTree = buildCommentTree(comments);
 
+  // Get total comments count including replies
+  const totalCommentsCount = getTotalCommentsCount(commentTree);
+
   // Get comments to display based on showAllComments state
   const getDisplayComments = () => {
     if (commentTree.length === 0) return [];
@@ -831,7 +828,6 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                 className="flex items-center gap-2 text-gray-700 hover:text-red-500 transition-colors group"
               >
                 <div className="relative">
-                  {/* Use hasLiked state instead of checking post.likesCount > 0 */}
                   <FiHeart className={`w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110 ${
                     hasLiked ? 'fill-red-500 text-red-500' : ''
                   }`} />
@@ -839,7 +835,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                     <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                   )}
                 </div>
-                <span className="text-sm sm:text-base font-semibold">{post.likesCount}</span>
+                <span className="text-sm sm:text-base font-semibold">{likesCount}</span>
               </button>
 
               <button
@@ -858,7 +854,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                 className="flex items-center gap-2 text-gray-700 hover:text-emerald-600 transition-colors group"
               >
                 <FiMessageCircle className="w-5 h-5 sm:w-6 sm:h-6 transition-transform group-hover:scale-110" />
-                <span className="text-sm sm:text-base font-semibold">{commentTree.length}</span>
+                <span className="text-sm sm:text-base font-semibold">{totalCommentsCount}</span>
               </button>
             </div>
           </div>
@@ -878,7 +874,7 @@ export const PostCard = ({ post, onDelete, onLike, onAddComment }: PostCardProps
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm sm:text-base font-semibold text-gray-800 flex items-center gap-2">
                     <FiMessageCircle className="text-emerald-600" />
-                    Responses ({commentTree.length})
+                    Responses ({totalCommentsCount})
                     {commentTree.length > 0 && (
                       <span className="text-[10px] text-emerald-500 font-normal">
                         (Newest first)

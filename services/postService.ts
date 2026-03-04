@@ -16,6 +16,9 @@ export interface Comment {
   name: string;
   comment: string;
   created_at: string;
+  parent_comment_id?: number | null;
+  email?: string;
+  is_admin_reply?: boolean;
 }
 
 export interface Post {
@@ -30,6 +33,7 @@ export interface Post {
   images: PostImage[];
   likesCount: number;
   comments: Comment[];
+  liked_by_user?: boolean; // Add this field to track if current user liked the post
 }
 
 export interface CreatePostData {
@@ -42,7 +46,7 @@ export interface CreatePostData {
 }
 
 export const postService = {
-  // Get paginated posts (public)
+  // Get paginated posts with like status for current user
   async getPaginatedPosts(page: number = 1, limit: number = 10): Promise<{ posts: Post[], total: number }> {
     try {
       const response = await api.get('/posts');
@@ -67,7 +71,7 @@ export const postService = {
     }
   },
 
-  // Get all posts (public)
+  // Get all posts with like status for current user
   async getAllPosts(): Promise<Post[]> {
     try {
       const response = await api.get('/posts');
@@ -78,7 +82,7 @@ export const postService = {
     }
   },
 
-  // Get single post (public)
+  // Get single post with like status for current user
   async getPost(id: number): Promise<Post> {
     try {
       const response = await api.get(`/posts/${id}`);
@@ -86,6 +90,17 @@ export const postService = {
     } catch (error) {
       console.error("Error in getPost:", error);
       throw error;
+    }
+  },
+
+  // Check if current user liked a specific post
+  async checkIfUserLikedPost(postId: number): Promise<boolean> {
+    try {
+      const response = await api.get(`/posts/${postId}/liked`);
+      return response.data.liked;
+    } catch (error) {
+      console.error("Error checking if user liked post:", error);
+      return false;
     }
   },
 
@@ -177,17 +192,11 @@ export const postService = {
     }
   },
 
-  // Reply to a comment - FIXED: Now takes 2 arguments (commentId, replyText)
-  async replyToComment(commentId: number, replyText: string): Promise<any> {
+  // Reply to a comment
+  async replyToComment(postId: number, commentId: number, replyText: string): Promise<any> {
     try {
-      // First get the postId to construct the correct URL
-      // You might need to pass postId as well, but the endpoint expects postId in URL
-      // This assumes your backend endpoint is /posts/:postId/comments/:commentId/reply
-      // If your endpoint is different, adjust accordingly
-      
-      // For now, we'll use the commentId to get the post
-      const response = await api.post(`/admin/comments/${commentId}/reply`, {
-        reply: replyText
+      const response = await api.post(`/posts/${postId}/comments/${commentId}/reply`, {
+        comment: replyText
       });
       return response.data;
     } catch (error) {
@@ -196,8 +205,8 @@ export const postService = {
     }
   },
 
-  // Like a post
-  async likePost(id: number): Promise<{ likesCount: number }> {
+  // Like a post - returns new like count and like status
+  async likePost(id: number): Promise<{ likesCount: number; liked: boolean }> {
     try {
       const response = await api.post(`/posts/${id}/like`);
       return response.data;

@@ -169,21 +169,33 @@ export default function AdminPostsPage() {
     }
   };
 
-  const handleLikePost = async (id: number) => {
-    try {
-      const response = await postService.likePost(id);
-      
-      setPosts(posts.map(post => 
-        post.id === id 
-          ? { ...post, likesCount: response.likesCount } 
+  // In your component:
+const handleLikePost = async (postId: number) => {
+  try {
+    // Call your API to like/unlike the post
+    const response = await postService.likePost(postId);
+    
+    // Update the post in your local state with the new data
+    setPosts(prevPosts => 
+      prevPosts.map(post => 
+        post.id === postId 
+          ? { 
+              ...post, 
+              likesCount: response.likesCount,
+              liked_by_user: response.liked // Add this field to track like status
+            } 
           : post
-      ));
-      
-    } catch (error) {
-      toast.error('Failed to like story');
-      throw error;
-    }
-  };
+      )
+    );
+    
+    // Return the response so PostCard can use it
+    return response;
+    
+  } catch (error) {
+    console.error('Error liking post:', error);
+    throw error; // Re-throw so PostCard knows it failed
+  }
+};
 
   const handleAddComment = async (postId: number, name: string, comment: string) => {
     try {
