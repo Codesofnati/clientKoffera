@@ -503,7 +503,7 @@ useEffect(() => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: showText ? 1 : 0, y: showText ? 0 : 20 }}
               transition={{ duration: 0.8, delay: 0.3 }}
-              className="flex mt-50 md:mt-0 flex-wrap gap-4 justify-center"
+              className="flex mt-40 md:mt-0 flex-wrap gap-4 justify-center"
             >
                            <Link href="/contact">
 
