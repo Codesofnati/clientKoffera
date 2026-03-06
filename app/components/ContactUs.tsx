@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, JSX } from "react";
+import React, { useState, useEffect, JSX, useRef } from "react";
 import { motion, useInView } from "framer-motion";
+import emailjs from '@emailjs/browser';
 import {
   FaFacebookF,
   FaTelegramPlane,
@@ -17,10 +18,11 @@ import {
   Phone, 
   MapPin, 
   Send, 
-  Coffee, 
   Sparkles,
   Heart,
-  Globe
+  Globe,
+  CheckCircle,
+  AlertCircle
 } from "lucide-react";
 
 // Social Links Interface
@@ -43,7 +45,7 @@ const iconMap: Record<string, JSX.Element> = {
   linkedin: <FaLinkedinIn className="text-xl" />,
 };
 
-// Helper function for color classes (matching Founder component)
+// Helper function for color classes
 const getColorClasses = (color: string, type: 'bg' | 'text' | 'border' | 'from' | 'to' | 'hover') => {
   const isEmerald = color === 'emerald';
   switch(type) {
@@ -69,9 +71,20 @@ export default function ContactUs() {
   const [links, setLinks] = useState<SocialLink[]>([]);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ name: '', email: '', message: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<{
+    type: 'success' | 'error' | null;
+    message: string;
+  }>({ type: null, message: '' });
   
+  const formRef = useRef<HTMLFormElement>(null);
   const sectionRef = React.useRef<HTMLElement>(null);
   const isInView = useInView(sectionRef, { once: true, amount: 0.3 });
+
+  // EmailJS configuration
+  const EMAILJS_SERVICE_ID = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID!;
+  const EMAILJS_TEMPLATE_ID = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID!;
+  const EMAILJS_PUBLIC_KEY = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY!;
 
   useEffect(() => {
     const fetchSocialLinks = async () => {
@@ -92,6 +105,69 @@ export default function ContactUs() {
     fetchSocialLinks();
   }, [API]);
 
+  // Handle form input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.name || !formData.email || !formData.message) {
+      setSubmitStatus({
+        type: 'error',
+        message: 'Please fill in all fields'
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitStatus({ type: null, message: '' });
+
+    try {
+      // IMPORTANT: These variable names must match your EmailJS template
+      const templateParams = {
+        from_name: formData.name,      // This will be available as {{from_name}} in template
+        from_email: formData.email,    // This will be available as {{from_email}} in template
+        message: formData.message,      // This will be available as {{message}} in template
+        to_name: 'Koffera Team',
+        reply_to: formData.email,
+      };
+
+      console.log('Sending email with params:', templateParams); // For debugging
+
+      const result = await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        templateParams,
+        EMAILJS_PUBLIC_KEY
+      );
+
+      if (result.status === 200) {
+        setSubmitStatus({
+          type: 'success',
+          message: 'Message sent successfully! We\'ll get back to you soon.'
+        });
+        setFormData({ name: '', email: '', message: '' }); // Clear form
+      }
+    } catch (error) {
+      console.error('EmailJS error:', error);
+      setSubmitStatus({
+        type: 'error',
+        message: 'Failed to send message. Please try again later.'
+      });
+    } finally {
+      setIsSubmitting(false);
+      
+      // Auto-hide success/error message after 5 seconds
+      setTimeout(() => {
+        setSubmitStatus({ type: null, message: '' });
+      }, 5000);
+    }
+  };
+
   // Contact info items
   const contactInfo = [
     { icon: Mail, label: 'Email', value: 'info@koffera.com', color: 'emerald' },
@@ -99,7 +175,7 @@ export default function ContactUs() {
     { icon: MapPin, label: 'Address', value: 'Addis Ababa, Ethiopia', color: 'emerald' },
   ];
 
-  // Particles for background (matching Founder component)
+  // Particles for background
   const [particles, setParticles] = useState<
     { id: number; x: number; y: number; size: number; duration: number; delay: number }[]
   >([]);
@@ -122,7 +198,7 @@ export default function ContactUs() {
       id="contact"
       className="relative w-full bg-gradient-to-b from-white via-emerald-50/20 to-white py-24 px-5 md:px-16 overflow-hidden"
     >
-      {/* Animated Background Particles - matching Founder style */}
+      {/* Animated Background Particles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {particles.map((particle) => (
           <motion.div
@@ -150,7 +226,7 @@ export default function ContactUs() {
         ))}
       </div>
 
-      {/* Decorative Elements - matching Founder style */}
+      {/* Decorative Elements */}
       <div className="absolute inset-0 pointer-events-none">
         <motion.div 
           className="absolute top-20 right-20 w-96 h-96 bg-emerald-100 rounded-full blur-3xl opacity-20"
@@ -177,7 +253,7 @@ export default function ContactUs() {
       </div>
 
       <div className="relative max-w-7xl mx-auto z-10">
-        {/* Header Section - matching Founder style */}
+        {/* Header Section */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
@@ -391,7 +467,7 @@ export default function ContactUs() {
           </div>
         </motion.div>
 
-        {/* Quick Contact Form */}
+        {/* Quick Contact Form with EmailJS Integration */}
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
@@ -406,32 +482,84 @@ export default function ContactUs() {
                 <p className="text-gray-600">We'd love to hear from you</p>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <input
-                  type="text"
-                  placeholder="Your Name"
-                  className="px-4 py-3 text-black rounded-xl border border-gray-200 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200 outline-none transition-all"
+              {/* Status Message */}
+              {submitStatus.type && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`mb-6 p-4 rounded-xl flex items-center gap-3 ${
+                    submitStatus.type === 'success' 
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                  }`}
+                >
+                  {submitStatus.type === 'success' ? (
+                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  )}
+                  <p className="text-sm">{submitStatus.message}</p>
+                </motion.div>
+              )}
+
+              <form ref={formRef} onSubmit={handleSubmit}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="Your Name"
+                    disabled={isSubmitting}
+                    className="px-4 py-3 text-black rounded-xl border border-gray-200 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200 outline-none transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    required
+                  />
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="Your Email"
+                    disabled={isSubmitting}
+                    className="px-4 py-3 text-black rounded-xl border border-gray-200 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200 outline-none transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
+                    required
+                  />
+                </div>
+                <textarea
+                  name="message"
+                  value={formData.message}
+                  onChange={handleInputChange}
+                  placeholder="Your Message"
+                  rows={4}
+                  disabled={isSubmitting}
+                  className="w-full px-4 text-black py-3 rounded-xl border border-gray-200 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200 outline-none transition-all mb-4 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  required
                 />
-                <input
-                  type="email"
-                  placeholder="Your Email"
-                  className="px-4 py-3 text-black rounded-xl border border-gray-200 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200 outline-none transition-all"
-                />
-              </div>
-              <textarea
-                placeholder="Your Message"
-                rows={4}
-                className="w-full px-4 text-black py-3 rounded-xl border border-gray-200 focus:border-emerald-300 focus:ring-2 focus:ring-emerald-200 outline-none transition-all mb-4"
-              />
-              
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 group"
-              >
-                <Send className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                Send Message
-              </motion.button>
+                
+                <motion.button
+                  type="submit"
+                  disabled={isSubmitting}
+                  whileHover={!isSubmitting ? { scale: 1.02 } : {}}
+                  whileTap={!isSubmitting ? { scale: 0.98 } : {}}
+                  className={`w-full bg-gradient-to-r from-emerald-600 to-green-600 text-white font-semibold py-4 px-6 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 group ${
+                    isSubmitting 
+                      ? 'opacity-70 cursor-not-allowed' 
+                      : 'hover:shadow-xl'
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                      Send Message
+                    </>
+                  )}
+                </motion.button>
+              </form>
             </div>
           </div>
         </motion.div>

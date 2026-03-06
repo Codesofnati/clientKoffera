@@ -44,29 +44,6 @@ export default function Hero() {
     setFloatingBeans(beans);
   }, []);
 
-  /* --------------------------------------------------
-     FETCH HERO IMAGES FROM DATABASE
-  -------------------------------------------------- */
-  useEffect(() => {
-    async function fetchHeroImages() {
-      try {
-        const res1 = await fetch(`${API}/images/latest/heroImages/heroFirstImage`, {
-          cache: "no-store",
-        });
-
-        if (res1.ok) {
-          const data1 = await res1.json();
-          if (data1?.url) {
-            setHeroFirstImage(data1.url);
-          }
-        }
-      } catch (err) {
-        console.warn("Hero images unavailable, using default fallbacks");
-      }
-    }
-
-    fetchHeroImages();
-  }, [API]);
 
   /* --------------------------------------------------
      LOAD HERO SLIDES - Fetch 3 latest videos

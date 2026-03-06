@@ -27,6 +27,7 @@ import {
   Zap
 } from 'lucide-react';
 import Link from 'next/link';
+import AboutUsHeroVideo from './video';
 
 interface ImageItem {
   id: number;
@@ -365,77 +366,8 @@ const AboutUs = () => {
               whileHover={{ scale: 1.02 }}
               transition={{ type: "spring", stiffness: 300 }}
             >
-              {/* Multi-layer Glow Effect */}
-              <motion.div 
-                className="absolute -inset-6 bg-gradient-to-r from-emerald-600/10 via-green-600/10 to-emerald-600/10 rounded-3xl blur-2xl"
-                animate={{ 
-                  opacity: [0.3, 0.5, 0.3],
-                  scale: [1, 1.05, 1]
-                }}
-                transition={{ duration: 4, repeat: Infinity }}
-              />
-              <div className="absolute -inset-4 bg-gradient-to-r from-emerald-600/10 to-green-600/10 rounded-3xl blur-xl opacity-50" />
+              <AboutUsHeroVideo/>
               
-              <div className="relative overflow-hidden rounded-3xl shadow-2xl">
-                <motion.img
-                  src={`${visionImage?.url ?? vision.fallback}${cacheBuster}`}
-                  alt="Vision"
-                  className="w-full h-[500px] object-cover"
-                  whileHover={{ scale: 1.1 }}
-                  transition={{ duration: 0.6 }}
-                />
-                
-                {/* Gradient Overlay with Pattern */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent">
-                  <div className="absolute inset-0 opacity-20" style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-                  }} />
-                </div>
-                
-                {/* Vision Feature Rotator */}
-                <motion.div 
-                  className="absolute bottom-6 left-6 right-6"
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  <div className="bg-white/95 backdrop-blur-sm rounded-xl p-4 shadow-xl">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-500">Focus Area</span>
-                      <div className="flex gap-1">
-                        {vision.features.map((_, i) => (
-                          <motion.div
-                            key={i}
-                            className={`h-1 rounded-full transition-all ${
-                              i === activeVisionFeature ? 'w-4 bg-emerald-500' : 'w-1 bg-gray-300'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <motion.p 
-                      key={activeVisionFeature}
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="font-semibold text-gray-800 mt-1"
-                    >
-                      {vision.features[activeVisionFeature]}
-                    </motion.p>
-                  </div>
-                </motion.div>
-
-                {/* Decorative Corner Elements */}
-                <motion.div 
-                  className="absolute top-0 left-0 w-16 h-16 border-t-4 border-l-4 border-emerald-400/50 rounded-tl-3xl"
-                  animate={{ opacity: [0.3, 0.6, 0.3] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                />
-                <motion.div 
-                  className="absolute bottom-0 right-0 w-16 h-16 border-b-4 border-r-4 border-green-400/50 rounded-br-3xl"
-                  animate={{ opacity: [0.3, 0.6, 0.3] }}
-                  transition={{ duration: 2, repeat: Infinity, delay: 1 }}
-                />
-              </div>
             </motion.div>
 
             {/* Content */}

@@ -11,7 +11,7 @@ import ContactUs from "./components/ContactUs";
 import AdminPostsPage from "./components/Posts";
 
 export const metadata: Metadata = {
-  title: "Ethiopian Coffee Exporter",
+  title: "Koffera Ethiopian Coffee Exporter",
   description:
     "Discover Koffera Coffee – exporting Ethiopian coffee worldwide with quality.",
 };
