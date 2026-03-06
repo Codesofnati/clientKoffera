@@ -170,7 +170,7 @@ export default function ContactUs() {
 
   // Contact info items
   const contactInfo = [
-    { icon: Mail, label: 'Email', value: 'info@koffera.com', color: 'emerald' },
+    { icon: Mail, label: 'Email', value: 'firaolkebede777@gmail.com', color: 'emerald' },
     { icon: Phone, label: 'Phone', value: '+251 920318757', color: 'green' },
     { icon: MapPin, label: 'Address', value: 'Addis Ababa, Ethiopia', color: 'emerald' },
   ];
