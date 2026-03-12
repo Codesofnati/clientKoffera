@@ -54,8 +54,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.kofferacoffeeexport.com"),
+  alternates: {
+  canonical: "/",
+},
   title: {
-    default: "Koffera Coffee Exporte",
+    default: "Koffera Coffee Export",
     template: "%s | Koffera Coffee",
   },
   description: "Koffera Coffee is a premium Ethiopian coffee exporter delivering high-quality Arabica beans worldwide with sustainability and ethical sourcing.",
@@ -96,7 +99,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Koffera Coffee",
     description: "Premium Ethiopian coffee exporter delivering quality Arabica beans globally.",
-    images: ["https://koffera-coffee.vercel.app/og-image.png"],
+    images: ["https://www.kofferacoffeeexport.com/og-image.png"],
   },
   robots: {
     index: true,

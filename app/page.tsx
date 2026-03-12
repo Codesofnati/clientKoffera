@@ -15,70 +15,57 @@ export const metadata: Metadata = {
   description:
     "Discover Koffera Coffee – exporting Ethiopian coffee worldwide with quality.",
 };
-
-<script
-  type="application/ld+json"
-  dangerouslySetInnerHTML={{
-    __html: JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      name: "Koffera Coffee",
-      url: "https://www.kofferacoffeeexport.com",
-      logo: "https://www.kofferacoffeeexport.com/og-image.png",
-      sameAs: [
-        "https://www.facebook.com/share/1BmywZfzue/?mibextid=wwXIfr",
-        "https://www.instagram.com/fira_link_business_solution?igsh=b3BlZ3R1aWlwMTE3&utm_source=qr",
-        "https://t.me/Fira_Link",
-        "https://youtube.com/@fira-linkbusinesssolutionstube?si=8afre4ZAqfod6u3R"
-      ],
-    }),
-  }}
-/>
-
-
 export default function Home() {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Koffera Coffee",
+    url: "https://www.kofferacoffeeexport.com",
+    logo: "https://www.kofferacoffeeexport.com/og-image.png",
+    sameAs: [
+      "https://www.facebook.com/share/1BmywZfzue/?mibextid=wwXIfr",
+      "https://www.instagram.com/fira_link_business_solution",
+      "https://t.me/Fira_Link",
+      "https://youtube.com/@fira-linkbusinesssolutionstube"
+    ]
+  };
 
-
-
-  
   return (
-    <div className="scroll-smooth">
-      {/* Hero Section */}
-      <section id="hero" className="min-h-screen">
-        <HeroSection />
-      </section>
-      
-      {/* Founder Section */}
-      <section id="founder" className="min-h-screen bg-gray-50">
-        <Founder />
-      </section>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
-      {/* About Us Section */}
-      <section id="about" className="min-h-screen bg-white">
-        <AboutUs />
-      </section>
+      <div className="scroll-smooth">
+        <section id="hero" className="min-h-screen">
+          <HeroSection />
+        </section>
 
-      {/* Products Section */}
-      <section id="products" className="min-h-screen bg-gray-50">
-        <Product />
-      </section>
+        <section id="founder" className="min-h-screen bg-gray-50">
+          <Founder />
+        </section>
 
-      {/* Target Market Section */}
-      <section id="market" className="min-h-screen bg-white">
-        <TargetMarket />
-      </section>
+        <section id="about" className="min-h-screen bg-white">
+          <AboutUs />
+        </section>
 
-      {/* Achievements Section */}
-      <section id="achievements" className="min-h-screen bg-emerald-50">
-        <Achievements />
-      </section>
+        <section id="products" className="min-h-screen bg-gray-50">
+          <Product />
+        </section>
 
-      {/* Benefits Section */}
-      <section id="benefits" className="min-h-screen bg-white">
-        <BenefitsSection />
-      </section>
+        <section id="market" className="min-h-screen bg-white">
+          <TargetMarket />
+        </section>
 
-      
-    </div>
+        <section id="achievements" className="min-h-screen bg-emerald-50">
+          <Achievements />
+        </section>
+
+        <section id="benefits" className="min-h-screen bg-white">
+          <BenefitsSection />
+        </section>
+      </div>
+    </>
   );
 }
