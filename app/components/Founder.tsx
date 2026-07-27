@@ -81,7 +81,7 @@ const Founder = () => {
         const results: ImageItem[] = [];
 
         for (const cat of categories) {
-          const res = await fetch('https://newsss.koffera.workers.dev/images/latest/founder', { cache: 'no-store' });
+          const res = await fetch(`${API}/images/latest/${cat}`, { cache: 'no-store' });
           if (res.ok) {
             const data: ImageItem = await res.json();
             results.push(data);
