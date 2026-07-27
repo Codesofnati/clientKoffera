@@ -68,7 +68,7 @@ const Founder = () => {
       'International Business Consultant'
     ],
     expertise: ['Strategic Planning', 'Export Management', 'Business Development', 'Market Analysis'],
-    quote: "Ethiopian coffee isn't just a product—it's our heritage, our story, and our gift to the world."
+    quote: "Ethiopian coffee isn't just a product it's our heritage, our story, and our gift to the world."
   };
 
   useEffect(() => {
